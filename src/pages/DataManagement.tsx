@@ -3,7 +3,7 @@ import {
   Download, Search, Filter, Calendar, 
   TrendingUp, Users, CheckCircle, XCircle,
   FileSpreadsheet, BarChart3, PieChart as PieChartIcon,
-  Eye
+  Eye, Settings, AlertTriangle, Trash2
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -15,7 +15,7 @@ import { STATUS_LABELS, STATUS_COLORS } from '../constants';
 import { PatientDetailsModal } from '../components/common/PatientDetailsModal';
 
 export default function DataManagement() {
-  const { visits, patients } = useAppContext();
+  const { visits, patients, resetSystem, setModalConfig } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-01'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -346,6 +346,45 @@ export default function DataManagement() {
           </table>
         </div>
       </div>
+
+      {/* System Maintenance */}
+      <div className="bg-red-50 rounded-xl border border-red-100 p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-red-100 text-red-600 rounded-lg">
+            <Settings size={20} />
+          </div>
+          <div>
+            <h3 className="font-bold text-red-900">การดูแลรักษาระบบ (System Maintenance)</h3>
+            <p className="text-sm text-red-700">จัดการข้อมูลพื้นฐานและล้างข้อมูลระบบ</p>
+          </div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg border border-red-200 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="text-amber-500 mt-1 shrink-0" size={20} />
+            <div>
+              <p className="font-bold text-gray-800">ล้างข้อมูลทั้งหมด (Factory Reset)</p>
+              <p className="text-xs text-gray-500">ลบรายชื่อผู้ป่วย ประวัติการรับบริการ และรีเซ็ตเลข HN ทั้งหมด (ไม่สามารถกู้คืนได้)</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => {
+              setModalConfig({
+                isOpen: true,
+                type: 'confirm',
+                title: 'ยืนยันการล้างข้อมูลทั้งหมด',
+                message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลผู้ป่วยและประวัติทั้งหมด? การกระทำนี้ไม่สามารถกู้คืนได้',
+                onConfirm: resetSystem
+              });
+            }}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg transition-colors shadow-sm font-bold text-sm"
+          >
+            <Trash2 size={18} />
+            ล้างข้อมูลระบบ
+          </button>
+        </div>
+      </div>
+
       {selectedPatientId && (
         <PatientDetailsModal 
           patientId={selectedPatientId} 

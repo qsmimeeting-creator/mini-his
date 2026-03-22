@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, signInAnonymously } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
 import { Patient, Visit, Vaccine } from '../types';
 import { handleFirestoreError, OperationType } from '../utils/firestore';
 
@@ -24,7 +24,7 @@ interface AppContextType {
   vaccines: Vaccine[];
   modalConfig: ModalConfig;
   setModalConfig: (config: ModalConfig) => void;
-  registerPatient: (patient: Omit<Patient, 'id'>) => Promise<Patient>;
+  registerPatient: (patient: Omit<Patient, 'id' | 'hn'>) => Promise<Patient>;
   updatePatient: (patientId: string, patientData: Partial<Patient>) => Promise<void>;
   deletePatient: (patientId: string) => Promise<void>;
   openVisit: (patient: Patient) => Promise<void>;
@@ -34,6 +34,7 @@ interface AppContextType {
   updateVaccine: (vaccineId: string, vaccineData: Partial<Vaccine>) => Promise<void>;
   deleteVaccine: (vaccineId: string) => Promise<void>;
   voidVisit: (visitId: string) => Promise<void>;
+  resetSystem: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -104,10 +105,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await signOut(auth);
   };
 
-  const registerPatient = async (patientData: Omit<Patient, 'id'>) => {
+  const registerPatient = async (patientData: Omit<Patient, 'id' | 'hn'>) => {
     const id = `P${Date.now()}`;
-    const newPatient = { id, ...patientData };
+    const now = new Date();
+    const beYear = (now.getFullYear() + 543).toString().slice(-2);
+    
+    const counterRef = doc(db, 'metadata', 'counters');
+    
     try {
+      const hn = await runTransaction(db, async (transaction) => {
+        const counterDoc = await transaction.get(counterRef);
+        let nextSeq = 1;
+        
+        if (counterDoc.exists()) {
+          const data = counterDoc.data();
+          if (data.lastHnYear === beYear) {
+            nextSeq = (data.lastHnSeq || 0) + 1;
+          }
+        }
+        
+        transaction.set(counterRef, {
+          lastHnYear: beYear,
+          lastHnSeq: nextSeq
+        }, { merge: true });
+        
+        const seqStr = nextSeq.toString().padStart(5, '0');
+        return `${beYear}${seqStr}`;
+      });
+
+      const newPatient = { id, hn, ...patientData };
       await setDoc(doc(db, 'patients', id), newPatient);
       return newPatient;
     } catch (error) {
@@ -225,13 +251,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const resetSystem = async () => {
+    try {
+      const { deleteDoc, getDocs, collection } = await import('firebase/firestore');
+      
+      // 1. Delete all visits
+      const visitSnapshot = await getDocs(collection(db, 'visits'));
+      const visitDeletes = visitSnapshot.docs.map(d => deleteDoc(doc(db, 'visits', d.id)));
+      
+      // 2. Delete all patients
+      const patientSnapshot = await getDocs(collection(db, 'patients'));
+      const patientDeletes = patientSnapshot.docs.map(d => deleteDoc(doc(db, 'patients', d.id)));
+      
+      // 3. Reset counters
+      const counterRef = doc(db, 'metadata', 'counters');
+      const resetCounter = setDoc(counterRef, {
+        lastHnYear: '',
+        lastHnSeq: 0
+      }, { merge: true });
+
+      await Promise.all([...visitDeletes, ...patientDeletes, resetCounter]);
+      
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'รีเซ็ตระบบสำเร็จ',
+        message: 'ข้อมูลผู้ป่วยและประวัติการรับบริการทั้งหมดถูกลบเรียบร้อยแล้ว'
+      });
+    } catch (error) {
+      console.error('Reset system error:', error);
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'เกิดข้อผิดพลาด',
+        message: 'ไม่สามารถรีเซ็ตระบบได้ กรุณาลองใหม่อีกครั้ง'
+      });
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       user, isAuthReady, login, logout,
       patients, visits, vaccines,
       modalConfig, setModalConfig,
       registerPatient, updatePatient, deletePatient, openVisit, updateVisitStatus, updateVaccineStock,
-      addVaccine, updateVaccine, deleteVaccine, voidVisit
+      addVaccine, updateVaccine, deleteVaccine, voidVisit, resetSystem
     }}>
       {children}
     </AppContext.Provider>

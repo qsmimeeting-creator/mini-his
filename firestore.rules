@@ -44,5 +44,9 @@ service cloud.firestore {
     match /vaccines/{vaccineId} {
       allow read, write: if true;
     }
+
+    match /metadata/{documentId} {
+      allow read, write: if true;
+    }
   }
 }

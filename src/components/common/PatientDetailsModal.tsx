@@ -150,6 +150,22 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
                               <div>
                                 <p className="text-xs font-bold text-gray-800">{order.name}</p>
                                 <p className="text-[10px] text-gray-500">Lot: {visit.data.dispensedLots || 'N/A'}</p>
+                                {visit.data?.injectionRecords && (
+                                  <div className="mt-1">
+                                    {visit.data.injectionRecords
+                                      .filter((r: any) => r.vaccineId === order.id)
+                                      .map((r: any, rIdx: number) => (
+                                        <p key={rIdx} className="text-[10px] text-blue-600 font-medium">
+                                          {r.route} | {r.site}
+                                        </p>
+                                      ))}
+                                  </div>
+                                )}
+                                {!visit.data?.injectionRecords && visit.data?.route && (
+                                  <p className="text-[10px] text-blue-600 font-medium">
+                                    {visit.data.route} | {visit.data.site}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           ))}

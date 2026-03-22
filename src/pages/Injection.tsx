@@ -1,30 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { SectionTitle } from '../components/common/SectionTitle';
 import { QueueTable, QueueTab } from '../components/common/QueueTable';
 import { Visit } from '../types';
+import { VaccineInjectionModal } from '../components/common/VaccineInjectionModal';
 
 export default function Injection() {
-  const { updateVisitStatus, setModalConfig } = useAppContext();
+  const { updateVisitStatus } = useAppContext();
+  const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
 
   const handleCallQueue = async (visit: Visit) => {
     await updateVisitStatus(visit.id, 'INJECTION_IN_PROGRESS');
-    handleInjection(visit);
+    setSelectedVisit(visit);
   };
 
   const handleInjection = (visit: Visit) => {
-    const orders = visit.data?.orders || [];
-    const orderNames = orders.map((o: any) => o.name).join(', ');
+    setSelectedVisit(visit);
+  };
 
-    setModalConfig({
-      isOpen: true,
-      type: 'confirm',
-      title: 'ยืนยันการบริหารวัคซีน',
-      message: `ยืนยันว่าได้ทำการฉีดวัคซีน:\n${orderNames}\nLot: ${visit.data?.dispensedLots} ให้ผู้ป่วยแล้ว?`,
-      onConfirm: () => {
-        updateVisitStatus(visit.id, 'COMPLETED', { injectedAt: new Date().toLocaleTimeString('th-TH') });
-      }
-    });
+  const onSaveInjection = async (data: any) => {
+    if (selectedVisit) {
+      await updateVisitStatus(selectedVisit.id, 'COMPLETED', data);
+      setSelectedVisit(null);
+    }
   };
 
   const renderVaccineInfo = (v: Visit) => {
@@ -59,12 +57,19 @@ export default function Injection() {
       label: 'คิวที่เสร็จสิ้น',
       filter: (v) => v.status === 'COMPLETED',
       renderExtraColumn: (v) => {
-        const orders = v.data?.orders || [];
+        const records = v.data?.injectionRecords || [];
         return (
-          <div className="text-xs text-gray-500">
-            <div className="font-medium text-emerald-700">{orders.map((o: any) => o.name).join(', ')}</div>
-            <div className="font-mono">Lot: {v.data?.dispensedLots}</div>
-            <div>เวลาฉีด: {v.data?.injectedAt}</div>
+          <div className="text-xs text-gray-500 space-y-2">
+            {records.map((record: any, idx: number) => (
+              <div key={idx} className="border-l-2 border-emerald-500 pl-2 py-0.5">
+                <div className="font-medium text-emerald-700">{record.vaccineName}</div>
+                <div className="flex gap-2 text-[10px] mt-0.5">
+                  <span className="bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">Route: {record.route}</span>
+                  <span className="bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">Site: {record.site}</span>
+                </div>
+              </div>
+            ))}
+            <div className="text-[10px] text-gray-400 italic pt-1">เวลาฉีด: {new Date(v.data?.injectedAt).toLocaleTimeString('th-TH')}</div>
           </div>
         );
       }
@@ -78,6 +83,14 @@ export default function Injection() {
         title="รายการฉีดวัคซีน" 
         tabs={tabs}
       />
+
+      {selectedVisit && (
+        <VaccineInjectionModal 
+          visit={selectedVisit}
+          onClose={() => setSelectedVisit(null)}
+          onSave={onSaveInjection}
+        />
+      )}
     </div>
   );
 }
