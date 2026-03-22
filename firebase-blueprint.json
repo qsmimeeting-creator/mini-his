@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "Patient": {
+      "title": "Patient",
+      "description": "A registered patient",
+      "type": "object",
+      "properties": {
+        "hn": { "type": "string" },
+        "name": { "type": "string" },
+        "cid": { "type": "string" },
+        "dob": { "type": "string" }
+      },
+      "required": ["hn", "name", "cid", "dob"]
+    },
+    "Visit": {
+      "title": "Visit",
+      "description": "A patient visit record",
+      "type": "object",
+      "properties": {
+        "vn": { "type": "string" },
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "status": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "data": { "type": "object" }
+      },
+      "required": ["vn", "patientId", "patientName", "status", "timestamp", "data"]
+    },
+    "Vaccine": {
+      "title": "Vaccine",
+      "description": "Vaccine inventory",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "stock": { "type": "number" },
+        "lot": { "type": "string" }
+      },
+      "required": ["name", "price", "stock", "lot"]
+    }
+  },
+  "firestore": {
+    "/patients/{patientId}": {
+      "schema": { "$ref": "#/entities/Patient" },
+      "description": "Patients collection"
+    },
+    "/visits/{visitId}": {
+      "schema": { "$ref": "#/entities/Visit" },
+      "description": "Visits collection"
+    },
+    "/vaccines/{vaccineId}": {
+      "schema": { "$ref": "#/entities/Vaccine" },
+      "description": "Vaccines collection"
+    }
+  }
+}

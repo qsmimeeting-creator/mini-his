@@ -1,0 +1,212 @@
+import React, { useState } from 'react';
+import { X, Activity, ClipboardCheck } from 'lucide-react';
+import { Visit } from '../../types';
+
+interface ScreeningModalProps {
+  visit: Visit;
+  onClose: () => void;
+  onSave: (data: any) => void;
+}
+
+export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    temp: visit.data?.temp || '',
+    pulse: visit.data?.pulse || '',
+    bpSys: visit.data?.bpSys || '',
+    bpDia: visit.data?.bpDia || '',
+    weight: visit.data?.weight || '',
+    height: visit.data?.height || '',
+    spo2: visit.data?.spo2 || '',
+    q1: visit.data?.q1 || 'no',
+    q2: visit.data?.q2 || 'no',
+    q3: visit.data?.q3 || 'no',
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      ...formData,
+      bp: `${formData.bpSys}/${formData.bpDia}`,
+      screenedAt: new Date().toISOString()
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <div>
+            <h3 className="font-bold text-xl text-gray-800">บันทึกการคัดกรอง</h3>
+            <p className="text-sm text-gray-500">ผู้ป่วย: {visit.patientName} | VN: {visit.vn}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-8 overflow-y-auto">
+          {/* Vital Signs Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-blue-700 font-semibold border-b border-gray-100 pb-2">
+              <Activity size={18} />
+              <span>สัญญาณชีพ (VITAL SIGNS)</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-gray-700">อุณหภูมิ (Temp)</label>
+                <div className="relative">
+                  <input 
+                    type="number" step="0.1"
+                    value={formData.temp}
+                    onChange={e => setFormData({...formData, temp: e.target.value})}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-8"
+                    placeholder="36.5"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">°C</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-gray-700">ชีพจร (Pulse)</label>
+                <div className="relative">
+                  <input 
+                    type="number"
+                    value={formData.pulse}
+                    onChange={e => setFormData({...formData, pulse: e.target.value})}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-10"
+                    placeholder="80"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">bpm</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-gray-700">ความดันโลหิต (BP)</label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="number"
+                    value={formData.bpSys}
+                    onChange={e => setFormData({...formData, bpSys: e.target.value})}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Sys (120)"
+                  />
+                  <span className="text-gray-400">/</span>
+                  <input 
+                    type="number"
+                    value={formData.bpDia}
+                    onChange={e => setFormData({...formData, bpDia: e.target.value})}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Dia (80)"
+                  />
+                  <span className="text-gray-400 text-xs whitespace-nowrap">mmHg</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-gray-700">น้ำหนัก (Weight)</label>
+                <div className="relative">
+                  <input 
+                    type="number" step="0.1"
+                    value={formData.weight}
+                    onChange={e => setFormData({...formData, weight: e.target.value})}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-8"
+                    placeholder="60.5"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">kg</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-gray-700">ส่วนสูง (Height)</label>
+                <div className="relative">
+                  <input 
+                    type="number"
+                    value={formData.height}
+                    onChange={e => setFormData({...formData, height: e.target.value})}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-8"
+                    placeholder="170"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">cm</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-gray-700">ออกซิเจน (SpO2)</label>
+                <div className="relative">
+                  <input 
+                    type="number"
+                    value={formData.spo2}
+                    onChange={e => setFormData({...formData, spo2: e.target.value})}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-6"
+                    placeholder="98"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Questionnaire Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-blue-700 font-semibold border-b border-gray-100 pb-2">
+              <ClipboardCheck size={18} />
+              <span>แบบสอบถามก่อนรับวัคซีน</span>
+            </div>
+            <div className="space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between p-3 bg-gray-50 rounded-lg gap-3">
+                <span className="text-sm text-gray-700">1. ปัจจุบันมีอาการเจ็บป่วย หรือมีไข้สูงหรือไม่?</span>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="q1" value="no" checked={formData.q1 === 'no'} onChange={e => setFormData({...formData, q1: e.target.value})} className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm">ไม่มี</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="q1" value="yes" checked={formData.q1 === 'yes'} onChange={e => setFormData({...formData, q1: e.target.value})} className="w-4 h-4 text-red-600" />
+                    <span className="text-sm text-red-600">มี</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex flex-col md:flex-row md:items-center justify-between p-3 bg-gray-50 rounded-lg gap-3">
+                <span className="text-sm text-gray-700">2. กำลังตั้งครรภ์ หรือให้นมบุตรหรือไม่? (เฉพาะสตรี)</span>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="q2" value="no" checked={formData.q2 === 'no'} onChange={e => setFormData({...formData, q2: e.target.value})} className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm">ไม่ใช่</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="q2" value="yes" checked={formData.q2 === 'yes'} onChange={e => setFormData({...formData, q2: e.target.value})} className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm text-amber-600">ใช่</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex flex-col md:flex-row md:items-center justify-between p-3 bg-gray-50 rounded-lg gap-3">
+                <span className="text-sm text-gray-700">3. เคยมีประวัติแพ้วัคซีน หรือส่วนประกอบของวัคซีนอย่างรุนแรงหรือไม่?</span>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="q3" value="no" checked={formData.q3 === 'no'} onChange={e => setFormData({...formData, q3: e.target.value})} className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm">ไม่เคย</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="q3" value="yes" checked={formData.q3 === 'yes'} onChange={e => setFormData({...formData, q3: e.target.value})} className="w-4 h-4 text-red-600" />
+                    <span className="text-sm text-red-600">เคย</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
+            <button 
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              ยกเลิก
+            </button>
+            <button 
+              type="submit"
+              className="px-8 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md transition-colors"
+            >
+              บันทึกข้อมูลคัดกรอง
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

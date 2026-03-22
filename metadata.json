@@ -1,0 +1,5 @@
+{
+  "name": "Mini HIS",
+  "description": "A lightweight Hospital Information System for managing vaccine registration, screening, and administration workflows.",
+  "requestFramePermissions": []
+}

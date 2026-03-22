@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isAuthenticated() {
+      return true; // Allow public access for demo purposes without login
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function isValidPatient(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.cid is string && data.cid.size() == 13 &&
+             data.hn is string && data.hn.size() > 0 && data.hn.size() < 20 &&
+             data.dob is string && data.dob.size() > 0 && data.dob.size() < 20;
+    }
+    
+    function isValidVisit(data) {
+      return data.vn is string && data.vn.size() > 0 && data.vn.size() < 20 &&
+             data.patientId is string && data.patientId.size() > 0 && data.patientId.size() < 50 &&
+             data.patientName is string && data.patientName.size() > 0 && data.patientName.size() < 100 &&
+             data.status is string && data.status.size() > 0 && data.status.size() < 50 &&
+             data.timestamp is string && data.timestamp.size() > 0 && data.timestamp.size() < 50 &&
+             data.data is map;
+    }
+    
+    function isValidVaccine(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.price is number && data.price >= 0 &&
+             data.stock is number && data.stock >= 0 &&
+             data.lot is string && data.lot.size() > 0 && data.lot.size() < 50;
+    }
+
+    match /patients/{patientId} {
+      allow read, write: if true;
+    }
+    
+    match /visits/{visitId} {
+      allow read, write: if true;
+    }
+    
+    match /vaccines/{vaccineId} {
+      allow read, write: if true;
+    }
+  }
+}
