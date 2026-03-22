@@ -10,7 +10,7 @@ import { EditPatientModal } from '../components/registration/EditPatientModal';
 
 export default function Registration() {
   const { patients, registerPatient, updatePatient, deletePatient, openVisit, setModalConfig } = useAppContext();
-  const [errors, setErrors] = useState<{ cid?: string; dob?: string }>({});
+  const [errors, setErrors] = useState<{ cid?: string; dob?: string; passport?: string }>({});
   const [activeTab, setActiveTab] = useState<'register' | 'master'>('register');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
@@ -69,7 +69,7 @@ export default function Registration() {
 
     const name = `${title}${firstName} ${lastName}`;
 
-    const newErrors: { cid?: string; dob?: string } = {};
+    const newErrors: { cid?: string; dob?: string; passport?: string } = {};
 
     // Validate CID (13 digits)
     if (citizenId && !/^\d{13}$/.test(citizenId)) {
@@ -235,6 +235,15 @@ export default function Registration() {
     });
   };
 
+  const handleCheckDuplicate = async (type: 'cid' | 'passport', value: string): Promise<boolean> => {
+    // We check against the local patients state which is synced with Firestore
+    if (type === 'cid') {
+      return patients.some(p => p.citizenId === value);
+    } else {
+      return patients.some(p => p.passportNo === value);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <SectionTitle title="ลงทะเบียนผู้รับบริการ" subtitle="เพิ่มประวัติผู้ป่วยใหม่ หรือค้นหาข้อมูลเพื่อเปิด Visit" />
@@ -271,6 +280,7 @@ export default function Registration() {
           isSubmitting={isSubmitting}
           errors={errors}
           setErrors={setErrors}
+          onCheckDuplicate={handleCheckDuplicate}
         />
       )}
       
