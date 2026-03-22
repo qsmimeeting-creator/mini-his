@@ -7,10 +7,27 @@
       "properties": {
         "hn": { "type": "string" },
         "name": { "type": "string" },
-        "cid": { "type": "string" },
-        "dob": { "type": "string" }
+        "title": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "gender": { "type": "string" },
+        "citizenId": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "addressLine1": { "type": "string" },
+        "province": { "type": "string" },
+        "postalCode": { "type": "string" },
+        "drugAllergy": { "type": "string" },
+        "foodAllergy": { "type": "string" },
+        "vaccineAllergy": { "type": "string" },
+        "underlyingDisease": { "type": "string" },
+        "currentMedication": { "type": "string" },
+        "paymentType": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["hn", "name", "cid", "dob"]
+      "required": ["hn", "name", "firstName", "lastName", "birthDate", "gender", "citizenId", "phone"]
     },
     "Visit": {
       "title": "Visit",
@@ -22,9 +39,10 @@
         "patientName": { "type": "string" },
         "status": { "type": "string" },
         "timestamp": { "type": "string" },
+        "visitType": { "type": "string" },
         "data": { "type": "object" }
       },
-      "required": ["vn", "patientId", "patientName", "status", "timestamp", "data"]
+      "required": ["vn", "patientId", "patientName", "status", "timestamp", "visitType", "data"]
     },
     "Vaccine": {
       "title": "Vaccine",
@@ -32,11 +50,19 @@
       "type": "object",
       "properties": {
         "name": { "type": "string" },
+        "genericName": { "type": "string" },
+        "manufacturer": { "type": "string" },
+        "type": { "type": "string" },
+        "lot": { "type": "string" },
+        "receivedDate": { "type": "string" },
+        "expiryDate": { "type": "string" },
+        "unitCost": { "type": "number" },
         "price": { "type": "number" },
         "stock": { "type": "number" },
-        "lot": { "type": "string" }
+        "reorderLevel": { "type": "number" },
+        "unit": { "type": "string" }
       },
-      "required": ["name", "price", "stock", "lot"]
+      "required": ["name", "type", "lot", "expiryDate", "unitCost", "price", "stock", "reorderLevel", "unit"]
     }
   },
   "firestore": {

@@ -76,22 +76,22 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">ชื่อ-นามสกุล</span>
-                <p className="font-semibold text-gray-900">{patient.name}</p>
+                <p className="font-semibold text-gray-900">{patient.title}{patient.firstName} {patient.lastName}</p>
               </div>
               <div className="space-y-1">
-                <span className="text-xs text-gray-500">เลขประจำตัวประชาชน</span>
-                <p className="font-semibold text-gray-900">{patient.cid}</p>
+                <span className="text-xs text-gray-500">เลขประจำตัวประชาชน / Passport</span>
+                <p className="font-semibold text-gray-900">{patient.citizenId || patient.passportNo || '-'}</p>
               </div>
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">วัน/เดือน/ปีเกิด</span>
                 <p className="font-semibold text-gray-900 flex items-center gap-1.5">
                   <Calendar size={14} className="text-gray-400" />
-                  {formatDate(patient.dob)}
+                  {formatDate(patient.birthDate)}
                 </p>
               </div>
               <div className="space-y-1">
-                <span className="text-xs text-gray-500">HN</span>
-                <p className="font-semibold text-blue-600">{patient.hn}</p>
+                <span className="text-xs text-gray-500">อายุ / เพศ</span>
+                <p className="font-semibold text-gray-900">{patient.age || '-'} ปี / {patient.gender === 'male' ? 'ชาย' : 'หญิง'}</p>
               </div>
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">เบอร์โทรศัพท์</span>
@@ -100,6 +100,20 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">อีเมล</span>
                 <p className="font-semibold text-gray-900">{patient.email || '-'}</p>
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <span className="text-xs text-gray-500">ที่อยู่</span>
+                <p className="font-semibold text-gray-900">
+                  {patient.addressLine1} {patient.subDistrict} {patient.district} {patient.province} {patient.postalCode}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-gray-500">ผู้ติดต่อฉุกเฉิน</span>
+                <p className="font-semibold text-gray-900">{patient.emergencyContactName || '-'}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-gray-500">เบอร์ติดต่อฉุกเฉิน</span>
+                <p className="font-semibold text-gray-900">{patient.emergencyContactPhone || '-'}</p>
               </div>
             </div>
           </section>
@@ -110,9 +124,23 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
               <Activity size={14} />
               ข้อมูลสุขภาพ
             </h4>
-            <div className="bg-red-50 p-4 rounded-xl border border-red-100">
-              <span className="text-xs text-red-500 font-bold uppercase">ประวัติการแพ้ยา / แพ้อาหาร</span>
-              <p className="font-semibold text-red-700 mt-1">{patient.allergies || 'ไม่มีประวัติการแพ้'}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-red-50 p-4 rounded-xl border border-red-100">
+                <span className="text-xs text-red-500 font-bold uppercase">ประวัติการแพ้ยา</span>
+                <p className="font-semibold text-red-700 mt-1">{patient.drugAllergy || 'ไม่มีประวัติการแพ้'}</p>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
+                <span className="text-xs text-orange-500 font-bold uppercase">ประวัติการแพ้อาหาร</span>
+                <p className="font-semibold text-orange-700 mt-1">{patient.foodAllergy || 'ไม่มีประวัติการแพ้'}</p>
+              </div>
+              <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                <span className="text-xs text-amber-500 font-bold uppercase">ประวัติการแพ้วัคซีน</span>
+                <p className="font-semibold text-amber-700 mt-1">{patient.vaccineAllergy || 'ไม่มีประวัติการแพ้'}</p>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                <span className="text-xs text-blue-500 font-bold uppercase">โรคประจำตัว</span>
+                <p className="font-semibold text-blue-700 mt-1">{patient.underlyingDisease || '-'}</p>
+              </div>
             </div>
           </section>
 

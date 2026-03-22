@@ -47,26 +47,40 @@ export default function Registration() {
     const firstName = formData.get('firstName') as string;
     const lastName = formData.get('lastName') as string;
     const gender = formData.get('gender') as string;
-    const cid = formData.get('cid') as string;
-    const dob = formData.get('dob') as string;
+    const citizenId = formData.get('citizenId') as string;
+    const birthDate = formData.get('birthDate') as string;
     const phone = formData.get('phone') as string;
     const email = formData.get('email') as string;
-    const allergies = formData.get('allergies') as string;
+    const passportNo = formData.get('passportNo') as string;
+    const nationality = formData.get('nationality') as string;
+    const paymentType = formData.get('paymentType') as string;
+    const addressLine1 = formData.get('addressLine1') as string;
+    const subDistrict = formData.get('subDistrict') as string;
+    const district = formData.get('district') as string;
+    const province = formData.get('province') as string;
+    const postalCode = formData.get('postalCode') as string;
+    const emergencyContactName = formData.get('emergencyContactName') as string;
+    const emergencyContactPhone = formData.get('emergencyContactPhone') as string;
+    const drugAllergy = formData.get('drugAllergy') as string;
+    const foodAllergy = formData.get('foodAllergy') as string;
+    const vaccineAllergy = formData.get('vaccineAllergy') as string;
+    const underlyingDisease = formData.get('underlyingDisease') as string;
+    const currentMedication = formData.get('currentMedication') as string;
 
     const name = `${title}${firstName} ${lastName}`;
 
     const newErrors: { cid?: string; dob?: string } = {};
 
     // Validate CID (13 digits)
-    if (!/^\d{13}$/.test(cid)) {
+    if (citizenId && !/^\d{13}$/.test(citizenId)) {
       newErrors.cid = 'เลขประจำตัวประชาชนต้องเป็นตัวเลข 13 หลัก';
     }
 
     // Validate DOB (not in future)
-    if (!dob) {
+    if (!birthDate) {
       newErrors.dob = 'กรุณาระบุวันเกิด';
     } else {
-      const selectedDate = new Date(dob);
+      const selectedDate = new Date(birthDate);
       const today = new Date();
       if (selectedDate > today) {
         newErrors.dob = 'วันเกิดห้ามเป็นวันที่ในอนาคต';
@@ -94,11 +108,25 @@ export default function Registration() {
         firstName,
         lastName,
         gender,
-        cid,
-        dob,
+        citizenId,
+        birthDate,
         phone,
         email,
-        allergies
+        passportNo,
+        nationality,
+        paymentType,
+        addressLine1,
+        subDistrict,
+        district,
+        province,
+        postalCode,
+        emergencyContactName,
+        emergencyContactPhone,
+        drugAllergy,
+        foodAllergy,
+        vaccineAllergy,
+        underlyingDisease,
+        currentMedication
       });
       
       await openVisit(newPatient);

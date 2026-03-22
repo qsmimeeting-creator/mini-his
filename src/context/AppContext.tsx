@@ -72,10 +72,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubVaccines = onSnapshot(collection(db, 'vaccines'), (snapshot) => {
       const vacs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Vaccine));
       if (vacs.length === 0) {
-        const INITIAL_VACCINES = [
-          { id: 'V01', name: 'Influenza (4-strain)', price: 850, stock: 50, lot: 'LOT-FLU-2026A' },
-          { id: 'V02', name: 'HPV (9-valent)', price: 6500, stock: 20, lot: 'LOT-HPV-2026B' },
-          { id: 'V03', name: 'Hepatitis B', price: 600, stock: 100, lot: 'LOT-HEPB-2026C' }
+        const INITIAL_VACCINES: Vaccine[] = [
+          { 
+            id: 'V01', 
+            name: 'Influenza (4-strain)', 
+            genericName: 'Influenza Vaccine',
+            manufacturer: 'Sanofi Pasteur',
+            type: 'Inactivated',
+            price: 850, 
+            unitCost: 450,
+            stock: 50, 
+            reorderLevel: 10,
+            unit: 'Dose',
+            lot: 'LOT-FLU-2026A',
+            receivedDate: new Date().toISOString(),
+            expiryDate: '2027-12-31T23:59:59Z'
+          },
+          { 
+            id: 'V02', 
+            name: 'HPV (9-valent)', 
+            genericName: 'Human Papillomavirus Vaccine',
+            manufacturer: 'MSD',
+            type: 'Recombinant',
+            price: 6500, 
+            unitCost: 4800,
+            stock: 20, 
+            reorderLevel: 5,
+            unit: 'Dose',
+            lot: 'LOT-HPV-2026B',
+            receivedDate: new Date().toISOString(),
+            expiryDate: '2028-06-30T23:59:59Z'
+          },
+          { 
+            id: 'V03', 
+            name: 'Hepatitis B', 
+            genericName: 'Hepatitis B Vaccine',
+            manufacturer: 'GSK',
+            type: 'Recombinant',
+            price: 600, 
+            unitCost: 250,
+            stock: 100, 
+            reorderLevel: 20,
+            unit: 'Dose',
+            lot: 'LOT-HEPB-2026C',
+            receivedDate: new Date().toISOString(),
+            expiryDate: '2027-09-15T23:59:59Z'
+          }
         ];
         INITIAL_VACCINES.forEach(v => {
           setDoc(doc(db, 'vaccines', v.id), v).catch(e => handleFirestoreError(e, OperationType.CREATE, `vaccines/${v.id}`));
@@ -133,7 +175,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return `${beYear}${seqStr}`;
       });
 
-      const newPatient = { id, hn, ...patientData };
+      const newPatient = { 
+        id, 
+        hn, 
+        ...patientData,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
+      };
       await setDoc(doc(db, 'patients', id), newPatient);
       return newPatient;
     } catch (error) {
@@ -163,13 +211,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const openVisit = async (patient: Patient) => {
     const id = `V${Date.now()}`;
+    const now = new Date().toISOString();
     const newVisit: Visit = {
       id,
       vn: `VN-${Math.floor(Math.random() * 100000)}`,
       patientId: patient.id,
       patientName: patient.name,
       status: 'SCREENING_PENDING',
-      timestamp: new Date().toISOString(),
+      timestamp: now,
+      visitType: 'Vaccination',
+      servicePoint: 'OPD',
+      registeredBy: user?.displayName || user?.email || 'System',
       data: {}
     };
     try {

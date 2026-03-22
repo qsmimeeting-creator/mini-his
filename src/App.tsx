@@ -10,6 +10,7 @@ import { CustomModal } from './components/common/CustomModal';
 import { QueueSummary } from './components/common/QueueSummary';
 
 // Pages
+import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Registration from './pages/Registration';
 import Screening from './pages/Screening';
@@ -42,8 +43,37 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const isHomePage = location.pathname === '/' || location.pathname === '';
+
   if (!isAuthReady) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50">กำลังโหลด...</div>;
+  }
+
+  // Full screen layout for Home page
+  if (isHomePage) {
+    return (
+      <div className="min-h-screen bg-gray-50 font-sans text-gray-900 overflow-auto">
+        <CustomModal />
+        <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-12 sticky top-0 z-10 shadow-sm">
+          <div className="flex items-center gap-3 text-blue-700 font-black text-2xl tracking-tight">
+            <Syringe className="text-blue-600" size={32} />
+            Mini HIS
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-bold text-gray-900">เจ้าหน้าที่ทดสอบ</p>
+              <p className="text-xs text-gray-500">Administrator</p>
+            </div>
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold">
+              AD
+            </div>
+          </div>
+        </header>
+        <main className="p-6 md:p-12">
+          <Home />
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -61,7 +91,10 @@ export default function App() {
       {/* Sidebar */}
       <aside className={`fixed lg:static inset-y-0 left-0 w-64 bg-white border-r border-gray-200 flex flex-col z-30 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200">
-          <div className="flex items-center gap-2 text-blue-700 font-bold text-xl tracking-tight">
+          <div 
+            className="flex items-center gap-2 text-blue-700 font-bold text-xl tracking-tight cursor-pointer"
+            onClick={() => navigate('/')}
+          >
             <Syringe className="text-blue-600" size={24} />
             Mini HIS
           </div>
@@ -81,7 +114,7 @@ export default function App() {
             <SidebarItem path="/dispense" icon={Pill} label="ห้องจ่ายยา / คลัง" isActive={location.pathname === '/dispense'} onClick={() => { navigate('/dispense'); setIsSidebarOpen(false); }} />
             <SidebarItem path="/injection" icon={Syringe} label="ห้องฉีดยา" isActive={location.pathname === '/injection'} onClick={() => { navigate('/injection'); setIsSidebarOpen(false); }} />
             <SidebarItem path="/data-management" icon={BarChart3} label="จัดการข้อมูล" isActive={location.pathname === '/data-management'} onClick={() => { navigate('/data-management'); setIsSidebarOpen(false); }} />
-            <SidebarItem path="/" icon={Database} label="จัดการวัคซีน" isActive={location.pathname === '/' || location.pathname === ''} onClick={() => { navigate('/'); setIsSidebarOpen(false); }} />
+            <SidebarItem path="/vaccine-inventory" icon={Database} label="จัดการวัคซีน" isActive={location.pathname === '/vaccine-inventory'} onClick={() => { navigate('/vaccine-inventory'); setIsSidebarOpen(false); }} />
           </nav>
         </div>
       </aside>
@@ -110,7 +143,7 @@ export default function App() {
         {/* Scrollable Content Area */}
         <main className="flex-1 overflow-auto p-6 md:p-8">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/vaccine-inventory" element={<Dashboard />} />
             <Route path="/registration" element={<Registration />} />
             <Route path="/screening" element={<Screening />} />
             <Route path="/doctor" element={<Doctor />} />

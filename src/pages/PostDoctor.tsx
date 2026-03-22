@@ -1,28 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { SectionTitle } from '../components/common/SectionTitle';
 import { QueueTable, QueueTab } from '../components/common/QueueTable';
 import { Visit } from '../types';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, CheckCircle2, ClipboardList } from 'lucide-react';
+import { PostDoctorModal } from '../components/common/PostDoctorModal';
 
 export default function PostDoctor() {
   const { updateVisitStatus, setModalConfig } = useAppContext();
+  const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
 
   const handleCallQueue = async (visit: Visit) => {
     await updateVisitStatus(visit.id, 'POST_DOCTOR_IN_PROGRESS');
-    setModalConfig({
-      isOpen: true,
-      type: 'confirm',
-      title: 'ตรวจสอบความถูกต้อง',
-      message: `กำลังตรวจสอบข้อมูลสำหรับ ${visit.patientName} (VN: ${visit.vn})\nยืนยันความถูกต้องและส่งต่อไปยังจุดชำระเงิน?`,
-      onConfirm: () => handleComplete(visit)
-    });
+    setSelectedVisit(visit);
   };
 
   const handleComplete = async (visit: Visit) => {
     try {
       await updateVisitStatus(visit.id, 'PAYMENT_PENDING', {
-        postDoctorVerifiedAt: new Date().toLocaleTimeString('th-TH')
+        postDoctorVerifiedAt: new Date().toISOString()
       });
       
       setModalConfig({
@@ -31,6 +27,7 @@ export default function PostDoctor() {
         title: 'ตรวจสอบสำเร็จ',
         message: `ตรวจสอบความถูกต้องสำหรับ ${visit.patientName} เรียบร้อยแล้ว\nส่งต่อไปยังจุดชำระเงิน`
       });
+      setSelectedVisit(null);
     } catch (error) {
       console.error(error);
     }
@@ -68,13 +65,7 @@ export default function PostDoctor() {
       filter: (v) => v.status === 'POST_DOCTOR_IN_PROGRESS',
       renderExtraColumn: renderOrderInfo,
       actionLabel: 'ยืนยันความถูกต้อง',
-      onAction: (v) => setModalConfig({
-        isOpen: true,
-        type: 'confirm',
-        title: 'ยืนยันความถูกต้อง',
-        message: `ยืนยันความถูกต้องสำหรับ ${v.patientName} และส่งต่อไปยังจุดชำระเงิน?`,
-        onConfirm: () => handleComplete(v)
-      })
+      onAction: (v) => setSelectedVisit(v)
     },
     {
       id: 'completed',
@@ -86,7 +77,7 @@ export default function PostDoctor() {
             <CheckCircle size={12} />
             ตรวจสอบแล้ว
           </div>
-          <div>เวลา: {v.data?.postDoctorVerifiedAt}</div>
+          <div className="text-[10px] italic">เวลา: {new Date(v.data?.postDoctorVerifiedAt).toLocaleTimeString('th-TH')}</div>
         </div>
       )
     }
@@ -99,6 +90,14 @@ export default function PostDoctor() {
         title="รายการรอตรวจสอบ" 
         tabs={tabs}
       />
+
+      {selectedVisit && (
+        <PostDoctorModal 
+          visit={selectedVisit}
+          onClose={() => setSelectedVisit(null)}
+          onConfirm={() => handleComplete(selectedVisit)}
+        />
+      )}
     </div>
   );
 }
