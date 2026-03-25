@@ -18,15 +18,14 @@ export interface Patient {
   district?: string;
   province?: string;
   postalCode?: string;
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
   drugAllergy?: string;
   foodAllergy?: string;
   vaccineAllergy?: string;
   underlyingDisease?: string;
   currentMedication?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
   specialNote?: string;
-  paymentType?: string;
   insuranceType?: string;
   companyName?: string;
   billingNote?: string;

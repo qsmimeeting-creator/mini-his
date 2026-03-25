@@ -59,7 +59,7 @@ export const PatientMasterList: React.FC<PatientMasterListProps> = ({
                 <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="p-4 font-medium text-blue-600">{p.hn}</td>
                   <td className="p-4">{p.name}</td>
-                  <td className="p-4 text-gray-500">{p.cid}</td>
+                  <td className="p-4 text-gray-500">{p.citizenId || p.passportNo || '-'}</td>
                   <td className="p-4 text-right">
                     <div className="flex justify-end gap-2">
                       <button 

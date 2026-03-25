@@ -25,7 +25,14 @@ export default function PostDoctor() {
         isOpen: true,
         type: 'alert',
         title: 'ตรวจสอบสำเร็จ',
-        message: `ตรวจสอบความถูกต้องสำหรับ ${visit.patientName} เรียบร้อยแล้ว\nส่งต่อไปยังจุดชำระเงิน`
+        message: (
+          <div className="space-y-3 mt-2">
+            <p className="text-gray-700 text-base">ตรวจสอบความถูกต้องสำหรับ <span className="font-bold text-blue-700">{visit.patientName}</span> เรียบร้อยแล้ว</p>
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+              <p className="text-blue-700 font-medium text-sm">ส่งต่อไปยังจุดชำระเงิน</p>
+            </div>
+          </div>
+        )
       });
       setSelectedVisit(null);
     } catch (error) {
@@ -85,7 +92,7 @@ export default function PostDoctor() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <SectionTitle title="ห้องหลังพบแพทย์" subtitle="ตรวจสอบความถูกต้องของข้อมูลก่อนชำระเงิน" />
+      <SectionTitle title="พยาบาลหลังพบแพทย์" subtitle="ตรวจสอบความถูกต้องของข้อมูลก่อนชำระเงิน" />
       <QueueTable 
         title="รายการรอตรวจสอบ" 
         tabs={tabs}

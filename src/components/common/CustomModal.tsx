@@ -15,24 +15,24 @@ export const CustomModal = () => {
 
   return (
     <div className="fixed inset-0 bg-gray-900/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-2">{modalConfig.title}</h3>
-        <p className="text-sm text-gray-600 mb-5 whitespace-pre-line leading-relaxed">{modalConfig.message}</p>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 transform transition-all">
+        <h3 className="text-2xl font-bold text-gray-900 mb-4">{modalConfig.title}</h3>
+        <div className="text-base text-gray-600 mb-8 whitespace-pre-line leading-relaxed">{modalConfig.message}</div>
         
         {modalConfig.type === 'prompt' && (
           <input 
             autoFocus
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4 outline-none"
+            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-6 outline-none"
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
           />
         )}
 
-        <div className="flex justify-end gap-3 mt-2">
+        <div className="flex justify-end gap-3 mt-4">
           {modalConfig.type !== 'alert' && (
             <button 
               onClick={() => setModalConfig({ ...modalConfig, isOpen: false })}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              className="px-6 py-2.5 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
             >
               ยกเลิก
             </button>
@@ -44,7 +44,7 @@ export const CustomModal = () => {
               }
               setModalConfig({ ...modalConfig, isOpen: false });
             }}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 shadow-sm transition-colors"
+            className="px-8 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-sm transition-colors"
           >
             ตกลง
           </button>

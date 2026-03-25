@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Activity, Thermometer, Heart, Weight, Scale, CheckCircle2, ClipboardList, AlertTriangle } from 'lucide-react';
+import { X, Activity, Thermometer, Heart, Weight, Scale, CheckCircle2, ClipboardList, AlertTriangle, Search, Filter } from 'lucide-react';
 import { Visit, Vaccine } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
@@ -13,7 +13,19 @@ interface DoctorOrderModalProps {
 export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClose, onConfirm }) => {
   const { vaccines, patients } = useAppContext();
   const [selectedVaccines, setSelectedVaccines] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedType, setSelectedType] = useState<string>('all');
+  
   const patient = patients.find(p => p.id === visit.patientId);
+
+  const vaccineTypes = Array.from(new Set(vaccines.map(v => v.type))).filter(Boolean);
+
+  const filteredVaccines = vaccines.filter(vac => {
+    const matchesSearch = vac.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (vac.genericName && vac.genericName.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesType = selectedType === 'all' || vac.type === selectedType;
+    return matchesSearch && matchesType;
+  });
 
   const toggleVaccine = (id: string) => {
     setSelectedVaccines(prev => 
@@ -112,23 +124,103 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
                     </div>
                   </div>
                 </div>
+
+                {/* Selected Vaccines List */}
+                <div className="space-y-3 pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase flex items-center gap-1">
+                      <CheckCircle2 size={12} className="text-blue-500" />
+                      รายการที่เลือก ({selectedVaccines.length})
+                    </p>
+                    {selectedVaccines.length > 0 && (
+                      <span className="text-xs font-bold text-blue-600">
+                        ฿{selectedVaccines.reduce((sum, id) => sum + (vaccines.find(v => v.id === id)?.price || 0), 0).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {selectedVaccines.length === 0 ? (
+                    <div className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                      <p className="text-xs text-gray-400">ยังไม่ได้เลือกวัคซีน</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                      {selectedVaccines.map(id => {
+                        const vac = vaccines.find(v => v.id === id);
+                        if (!vac) return null;
+                        return (
+                          <div key={id} className="flex justify-between items-start p-2.5 bg-blue-50/50 border border-blue-100 rounded-lg text-sm group">
+                            <div className="flex flex-col pr-2">
+                              <span className="font-bold text-gray-800 leading-tight">{vac.name}</span>
+                              <span className="text-[10px] text-gray-500">{vac.genericName || 'N/A'}</span>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="font-bold text-blue-600">฿{vac.price.toLocaleString()}</span>
+                              <button 
+                                onClick={(e) => { e.preventDefault(); toggleVaccine(id); }}
+                                className="text-[10px] text-red-500 hover:text-red-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                ลบออก
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Right: Vaccine Selection */}
-            <div className="lg:col-span-2 space-y-4">
+            <div className="lg:col-span-2 space-y-4 flex flex-col h-[600px]">
               <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                 <h4 className="font-bold text-gray-700 flex items-center gap-2">
                   <CheckCircle2 size={18} className="text-blue-600" />
                   เลือกวัคซีนที่ต้องการสั่งจ่าย
                 </h4>
                 <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                  ทั้งหมด {vaccines.length} รายการ
+                  ทั้งหมด {filteredVaccines.length} รายการ
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto p-1">
-                {vaccines.map(vac => (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อวัคซีน..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  />
+                </div>
+                {vaccineTypes.length > 0 && (
+                  <div className="relative min-w-[150px]">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <select
+                      value={selectedType}
+                      onChange={(e) => setSelectedType(e.target.value)}
+                      className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white transition-all"
+                    >
+                      <option value="all">ทุกประเภท</option>
+                      {vaccineTypes.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto p-1 flex-1 content-start">
+                {filteredVaccines.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-gray-500 flex flex-col items-center">
+                    <Search size={48} className="text-gray-300 mb-4" />
+                    <p className="text-lg font-medium">ไม่พบวัคซีนที่ค้นหา</p>
+                    <p className="text-sm">ลองค้นหาด้วยคำอื่น หรือเลือกประเภทอื่น</p>
+                  </div>
+                ) : (
+                  filteredVaccines.map(vac => (
                   <label 
                     key={vac.id} 
                     className={`group relative flex flex-col p-4 rounded-2xl cursor-pointer transition-all border-2 ${
@@ -182,7 +274,7 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
                       </div>
                     )}
                   </label>
-                ))}
+                )))}
               </div>
             </div>
           </div>

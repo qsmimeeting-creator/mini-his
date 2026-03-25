@@ -1,8 +1,9 @@
-import React from 'react';
-import { User, AlertCircle, Calendar, CreditCard } from 'lucide-react';
+import React, { useState } from 'react';
+import { User, AlertCircle, Calendar, CreditCard, Edit2 } from 'lucide-react';
 import { Patient, Visit } from '../../types';
 import { format, parseISO, isValid, differenceInYears } from 'date-fns';
 import { th } from 'date-fns/locale';
+import { HealthInfoModal } from './HealthInfoModal';
 
 interface PatientSummaryBarProps {
   patient: Patient;
@@ -10,6 +11,8 @@ interface PatientSummaryBarProps {
 }
 
 export const PatientSummaryBar: React.FC<PatientSummaryBarProps> = ({ patient, visit }) => {
+  const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
+
   const calculateAge = (dob: string) => {
     try {
       const date = parseISO(dob);
@@ -82,20 +85,33 @@ export const PatientSummaryBar: React.FC<PatientSummaryBarProps> = ({ patient, v
         )}
 
         {/* Right Side: Allergy Alert */}
-        <div className={`flex-1 p-4 flex items-center gap-3 ${hasAllergies ? 'bg-red-50 animate-pulse' : 'bg-emerald-50/30'}`}>
+        <div 
+          onClick={() => setIsHealthModalOpen(true)}
+          className={`flex-1 p-4 flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity relative group ${hasAllergies ? 'bg-red-50 animate-pulse' : 'bg-emerald-50/30'}`}
+        >
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${hasAllergies ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
             <AlertCircle size={20} />
           </div>
-          <div className="min-w-0">
-            <span className={`text-xs font-bold uppercase ${hasAllergies ? 'text-red-500' : 'text-emerald-600'}`}>
-              Allergy Alert / ข้อควรระวัง
-            </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold uppercase ${hasAllergies ? 'text-red-500' : 'text-emerald-600'}`}>
+                Allergy Alert / ข้อควรระวัง
+              </span>
+              <Edit2 size={14} className={`opacity-0 group-hover:opacity-100 transition-opacity ${hasAllergies ? 'text-red-400' : 'text-emerald-400'}`} />
+            </div>
             <p className={`text-sm font-bold truncate ${hasAllergies ? 'text-red-700' : 'text-emerald-700'}`}>
               {hasAllergies ? [patient.drugAllergy, patient.foodAllergy, patient.vaccineAllergy].filter(Boolean).join(', ') : 'ไม่มีประวัติการแพ้'}
             </p>
           </div>
         </div>
       </div>
+
+      {isHealthModalOpen && (
+        <HealthInfoModal 
+          patient={patient} 
+          onClose={() => setIsHealthModalOpen(false)} 
+        />
+      )}
     </div>
   );
 };

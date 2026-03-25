@@ -41,6 +41,32 @@ export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, 
     }
   }, [formData.weight, formData.height]);
 
+  const getVitalWarnings = () => {
+    const warnings = [];
+    if (formData.bpSys || formData.bpDia) {
+      const sys = parseInt(formData.bpSys) || 0;
+      const dia = parseInt(formData.bpDia) || 0;
+      if (sys > 140 || dia > 90) {
+        warnings.push('ความดันโลหิตสูงกว่าเกณฑ์มาตรฐาน (BP > 140/90)');
+      } else if ((sys > 0 && sys < 90) || (dia > 0 && dia < 60)) {
+        warnings.push('ความดันโลหิตต่ำกว่าเกณฑ์มาตรฐาน (BP < 90/60)');
+      }
+    }
+    
+    if (formData.pulse) {
+      const pulse = parseInt(formData.pulse);
+      if (pulse > 100) {
+        warnings.push('ชีพจรเต้นเร็วกว่าเกณฑ์มาตรฐาน (Pulse > 100)');
+      } else if (pulse > 0 && pulse < 60) {
+        warnings.push('ชีพจรเต้นช้ากว่าเกณฑ์มาตรฐาน (Pulse < 60)');
+      }
+    }
+    
+    return warnings;
+  };
+
+  const vitalWarnings = getVitalWarnings();
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
@@ -75,23 +101,34 @@ export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, 
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-gray-700">อุณหภูมิ (Temp)</label>
-                  <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700">ความดันโลหิต (BP) <span className="text-red-500">*</span></label>
+                  <div className="flex items-center gap-2">
                     <input 
-                      type="number" step="0.1"
-                      value={formData.temp}
-                      onChange={e => setFormData({...formData, temp: e.target.value})}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-8"
-                      placeholder="36.5"
+                      type="number"
+                      required
+                      value={formData.bpSys}
+                      onChange={e => setFormData({...formData, bpSys: e.target.value})}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="120"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">°C</span>
+                    <span className="text-gray-400">/</span>
+                    <input 
+                      type="number"
+                      required
+                      value={formData.bpDia}
+                      onChange={e => setFormData({...formData, bpDia: e.target.value})}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="80"
+                    />
+                    <span className="text-gray-400 text-xs whitespace-nowrap">mmHg</span>
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-gray-700">ชีพจร (Pulse)</label>
+                  <label className="block text-sm font-medium text-gray-700">ชีพจร (Pulse) <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <input 
                       type="number"
+                      required
                       value={formData.pulse}
                       onChange={e => setFormData({...formData, pulse: e.target.value})}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-10"
@@ -114,24 +151,16 @@ export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, 
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-gray-700">ความดันโลหิต (BP)</label>
-                  <div className="flex items-center gap-2">
+                  <label className="block text-sm font-medium text-gray-700">อุณหภูมิ (Temp)</label>
+                  <div className="relative">
                     <input 
-                      type="number"
-                      value={formData.bpSys}
-                      onChange={e => setFormData({...formData, bpSys: e.target.value})}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="120"
+                      type="number" step="0.1"
+                      value={formData.temp}
+                      onChange={e => setFormData({...formData, temp: e.target.value})}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-8"
+                      placeholder="36.5"
                     />
-                    <span className="text-gray-400">/</span>
-                    <input 
-                      type="number"
-                      value={formData.bpDia}
-                      onChange={e => setFormData({...formData, bpDia: e.target.value})}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="80"
-                    />
-                    <span className="text-gray-400 text-xs whitespace-nowrap">mmHg</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">°C</span>
                   </div>
                 </div>
                 <div className="space-y-1.5">
@@ -187,6 +216,20 @@ export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, 
                   </div>
                 </div>
               </div>
+              
+              {vitalWarnings.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-4">
+                  <div className="flex items-center gap-2 text-red-700 font-bold mb-1">
+                    <Activity size={16} />
+                    <span>แจ้งเตือนค่าสัญญาณชีพผิดปกติ</span>
+                  </div>
+                  <ul className="list-disc list-inside text-sm text-red-600 space-y-1">
+                    {vitalWarnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Questionnaire Section */}

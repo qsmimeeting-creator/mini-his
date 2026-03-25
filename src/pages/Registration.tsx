@@ -32,7 +32,7 @@ export default function Registration() {
     return (
       p.name.toLowerCase().includes(searchLower) ||
       p.hn.toLowerCase().includes(searchLower) ||
-      (p.cid && p.cid.includes(searchTerm))
+      (p.citizenId && p.citizenId.includes(searchTerm))
     );
   });
 
@@ -53,19 +53,18 @@ export default function Registration() {
     const email = formData.get('email') as string;
     const passportNo = formData.get('passportNo') as string;
     const nationality = formData.get('nationality') as string;
-    const paymentType = formData.get('paymentType') as string;
     const addressLine1 = formData.get('addressLine1') as string;
     const subDistrict = formData.get('subDistrict') as string;
     const district = formData.get('district') as string;
     const province = formData.get('province') as string;
     const postalCode = formData.get('postalCode') as string;
-    const emergencyContactName = formData.get('emergencyContactName') as string;
-    const emergencyContactPhone = formData.get('emergencyContactPhone') as string;
     const drugAllergy = formData.get('drugAllergy') as string;
     const foodAllergy = formData.get('foodAllergy') as string;
     const vaccineAllergy = formData.get('vaccineAllergy') as string;
     const underlyingDisease = formData.get('underlyingDisease') as string;
     const currentMedication = formData.get('currentMedication') as string;
+    const emergencyContactName = formData.get('emergencyContactName') as string;
+    const emergencyContactPhone = formData.get('emergencyContactPhone') as string;
 
     const name = `${title}${firstName} ${lastName}`;
 
@@ -114,19 +113,18 @@ export default function Registration() {
         email,
         passportNo,
         nationality,
-        paymentType,
         addressLine1,
         subDistrict,
         district,
         province,
         postalCode,
-        emergencyContactName,
-        emergencyContactPhone,
         drugAllergy,
         foodAllergy,
         vaccineAllergy,
         underlyingDisease,
-        currentMedication
+        currentMedication,
+        emergencyContactName,
+        emergencyContactPhone
       });
       
       await openVisit(newPatient);
@@ -138,7 +136,15 @@ export default function Registration() {
         isOpen: true,
         type: 'alert',
         title: 'ลงทะเบียนสำเร็จ',
-        message: `ลงทะเบียนผู้ป่วยและเปิด Visit ใหม่เรียบร้อยแล้ว\nHN: ${newPatient.hn}`
+        message: (
+          <div className="space-y-3 mt-2">
+            <p className="text-gray-700 text-base">ลงทะเบียนผู้ป่วยและเปิด Visit ใหม่เรียบร้อยแล้ว</p>
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-center gap-2">
+              <span className="text-blue-600 font-medium">HN:</span>
+              <span className="text-blue-800 font-bold text-lg">{newPatient.hn}</span>
+            </div>
+          </div>
+        )
       });
     } catch (error) {
       console.error('Registration error:', error);
@@ -162,7 +168,14 @@ export default function Registration() {
         isOpen: true,
         type: 'alert',
         title: 'เปิด Visit สำเร็จ',
-        message: `เปิด Visit ใหม่สำหรับ ${patient.name} เรียบร้อยแล้ว`
+        message: (
+          <div className="space-y-3 mt-2">
+            <p className="text-gray-700 text-base">เปิด Visit ใหม่สำหรับ <span className="font-bold text-blue-700">{patient.name}</span> เรียบร้อยแล้ว</p>
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+              <p className="text-blue-700 font-medium text-sm">ส่งต่อไปยังจุดคัดกรอง</p>
+            </div>
+          </div>
+        )
       });
     } catch (error) {
       console.error('Open visit error:', error);

@@ -33,11 +33,30 @@ export default function Doctor() {
         orderedAt: new Date().toISOString() 
       });
       
+      const totalAmount = orders.reduce((sum, o) => sum + (o?.price || 0), 0);
+      
       setModalConfig({
         isOpen: true,
         type: 'alert',
         title: 'สั่งวัคซีนสำเร็จ',
-        message: `แพทย์สั่งจ่ายวัคซีน ${orders.map(o => o?.name).join(', ')} ให้กับผู้ป่วยเรียบร้อยแล้ว\nส่งต่อไปยังห้องหลังพบแพทย์เพื่อตรวจสอบ`
+        message: (
+          <div className="space-y-4 mt-2">
+            <p className="text-gray-700">แพทย์สั่งจ่ายวัคซีนให้กับผู้ป่วยเรียบร้อยแล้ว ส่งต่อไปยังพยาบาลหลังพบแพทย์เพื่อตรวจสอบ</p>
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 space-y-2">
+              <div className="text-xs font-bold text-gray-500 uppercase border-b border-gray-200 pb-2 mb-2">รายการวัคซีนที่สั่งจ่าย</div>
+              {orders.map((o, idx) => (
+                <div key={idx} className="flex justify-between items-start text-sm">
+                  <span className="font-medium text-gray-800">{o?.name}</span>
+                  <span className="text-blue-600 font-bold whitespace-nowrap ml-4">฿{o?.price.toLocaleString()}</span>
+                </div>
+              ))}
+              <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-200">
+                <span className="font-bold text-gray-900">ยอดรวมทั้งสิ้น</span>
+                <span className="font-bold text-lg text-emerald-600">฿{totalAmount.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+        )
       });
     } catch (error) {
       console.error(error);

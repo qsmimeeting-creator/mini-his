@@ -9,7 +9,7 @@ interface ModalConfig {
   isOpen: boolean;
   type: string;
   title: string;
-  message: string;
+  message: React.ReactNode;
   defaultValue?: string;
   onConfirm?: (val?: string) => void;
 }
@@ -47,7 +47,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [vaccines, setVaccines] = useState<Vaccine[]>([]);
   
   const [modalConfig, setModalConfig] = useState<ModalConfig>({
-    isOpen: false, type: '', title: '', message: ''
+    isOpen: false, type: '', title: '', message: null
   });
 
   useEffect(() => {
@@ -214,7 +214,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const now = new Date().toISOString();
     const newVisit: Visit = {
       id,
-      vn: `VN-${Math.floor(Math.random() * 100000)}`,
+      vn: `VN-${String(visits.length + 1).padStart(5, '0')}`,
       patientId: patient.id,
       patientName: patient.name,
       status: 'SCREENING_PENDING',

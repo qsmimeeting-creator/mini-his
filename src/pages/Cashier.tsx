@@ -26,7 +26,14 @@ export default function Cashier() {
         isOpen: true,
         type: 'alert',
         title: 'ชำระเงินสำเร็จ',
-        message: `รับชำระเงินสำหรับ ${visit.patientName} เรียบร้อยแล้ว\nส่งต่อไปยังจุดจ่ายยาและฉีดวัคซีน`
+        message: (
+          <div className="space-y-3 mt-2">
+            <p className="text-gray-700 text-base">รับชำระเงินสำหรับ <span className="font-bold text-blue-700">{visit.patientName}</span> เรียบร้อยแล้ว</p>
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+              <p className="text-blue-700 font-medium text-sm">ส่งต่อไปยังจุดจ่ายยาและฉีดวัคซีน</p>
+            </div>
+          </div>
+        )
       });
       setSelectedVisit(null);
     } catch (error) {

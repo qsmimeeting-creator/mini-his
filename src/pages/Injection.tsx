@@ -6,7 +6,7 @@ import { Visit } from '../types';
 import { VaccineInjectionModal } from '../components/common/VaccineInjectionModal';
 
 export default function Injection() {
-  const { updateVisitStatus } = useAppContext();
+  const { updateVisitStatus, setModalConfig } = useAppContext();
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
 
   const handleCallQueue = async (visit: Visit) => {
@@ -21,6 +21,21 @@ export default function Injection() {
   const onSaveInjection = async (data: any) => {
     if (selectedVisit) {
       await updateVisitStatus(selectedVisit.id, 'COMPLETED', data);
+      
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'ฉีดวัคซีนสำเร็จ',
+        message: (
+          <div className="space-y-3 mt-2">
+            <p className="text-gray-700 text-base">บันทึกการฉีดวัคซีนสำหรับ <span className="font-bold text-blue-700">{selectedVisit.patientName}</span> เรียบร้อยแล้ว</p>
+            <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+              <p className="text-emerald-700 font-medium text-sm">กระบวนการทั้งหมดเสร็จสิ้น ผู้ป่วยสามารถเดินทางกลับได้</p>
+            </div>
+          </div>
+        )
+      });
+      
       setSelectedVisit(null);
     }
   };

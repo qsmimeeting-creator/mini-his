@@ -23,13 +23,34 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
     try {
       const date = parseISO(dateStr);
       if (isValid(date)) {
-        return format(date, 'dd MMMM yyyy', { locale: th });
+        const day = format(date, 'dd', { locale: th });
+        const month = format(date, 'MMMM', { locale: th });
+        const year = date.getFullYear() + 543;
+        return `${day} ${month} ${year}`;
       }
       return dateStr;
     } catch (e) {
       return dateStr;
     }
   };
+
+  const calculateAge = (birthDateStr: string) => {
+    try {
+      const birthDate = parseISO(birthDateStr);
+      if (!isValid(birthDate)) return null;
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const displayAge = patient.age || calculateAge(patient.birthDate);
 
   const formatDateTime = (dateStr: string) => {
     try {
@@ -76,7 +97,7 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">ชื่อ-นามสกุล</span>
-                <p className="font-semibold text-gray-900">{patient.title}{patient.firstName} {patient.lastName}</p>
+                <p className="font-semibold text-gray-900">{patient.title} {patient.firstName} {patient.lastName}</p>
               </div>
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">เลขประจำตัวประชาชน / Passport</span>
@@ -91,11 +112,18 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
               </div>
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">อายุ / เพศ</span>
-                <p className="font-semibold text-gray-900">{patient.age || '-'} ปี / {patient.gender === 'male' ? 'ชาย' : 'หญิง'}</p>
+                <p className="font-semibold text-gray-900">{displayAge || '-'} ปี / {patient.gender === 'male' ? 'ชาย' : 'หญิง'}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-gray-500">สัญชาติ</span>
+                <p className="font-semibold text-gray-900">{patient.nationality || '-'}</p>
               </div>
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">เบอร์โทรศัพท์</span>
-                <p className="font-semibold text-gray-900">{patient.phone || '-'}</p>
+                <p className="font-semibold text-gray-900">
+                  {patient.phone || '-'}
+                  {patient.phone?.startsWith('02') ? ' (บ้าน)' : patient.phone ? ' (มือถือ)' : ''}
+                </p>
               </div>
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">อีเมล</span>
@@ -140,6 +168,10 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
               <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                 <span className="text-xs text-blue-500 font-bold uppercase">โรคประจำตัว</span>
                 <p className="font-semibold text-blue-700 mt-1">{patient.underlyingDisease || '-'}</p>
+              </div>
+              <div className="sm:col-span-2 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                <span className="text-xs text-indigo-500 font-bold uppercase">ยาที่ใช้ประจำ</span>
+                <p className="font-semibold text-indigo-700 mt-1">{patient.currentMedication || '-'}</p>
               </div>
             </div>
           </section>
