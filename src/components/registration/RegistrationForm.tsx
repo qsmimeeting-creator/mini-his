@@ -36,6 +36,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [phoneType, setPhoneType] = React.useState<'mobile' | 'home'>('mobile');
   const [phone, setPhone] = React.useState('');
   const [emergencyContactPhone, setEmergencyContactPhone] = React.useState('');
+  const [nationality, setNationality] = React.useState('ไทย');
 
   React.useEffect(() => {
     if (birthDate.day && birthDate.month && birthDate.year) {
@@ -194,7 +195,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                     type="checkbox" 
                     checked={isForeigner}
                     onChange={(e) => {
-                      setIsForeigner(e.target.checked);
+                      const checked = e.target.checked;
+                      setIsForeigner(checked);
+                      setNationality(checked ? '' : 'ไทย');
                       setIdValue('');
                       setCidChecked(false);
                       setPassportChecked(false);
@@ -247,7 +250,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             </div>
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1.5">สัญชาติ</label>
-              <input name="nationality" className="w-full border-2 border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white" placeholder="ระบุสัญชาติ" defaultValue={isForeigner ? "" : "ไทย"} />
+              <input 
+                name="nationality" 
+                className="w-full border-2 border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white" 
+                placeholder="ระบุสัญชาติ" 
+                value={nationality}
+                onChange={(e) => setNationality(e.target.value)}
+              />
             </div>
           </div>
         </div>
@@ -526,6 +535,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               setOtherTitle('');
               setPhone('');
               setEmergencyContactPhone('');
+              setNationality('ไทย');
               setAddressForm({
                 subDistrict: '',
                 district: '',

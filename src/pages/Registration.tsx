@@ -43,7 +43,10 @@ export default function Registration() {
     const form = e.currentTarget;
     const formData = new FormData(form);
     
-    const title = formData.get('title') as string;
+    const selectedTitle = formData.get('title') as string;
+    const otherTitle = formData.get('otherTitle') as string;
+    const title = selectedTitle === 'อื่นๆ' ? otherTitle : selectedTitle;
+    
     const firstName = formData.get('firstName') as string;
     const lastName = formData.get('lastName') as string;
     const gender = formData.get('gender') as string;
@@ -66,7 +69,7 @@ export default function Registration() {
     const emergencyContactName = formData.get('emergencyContactName') as string;
     const emergencyContactPhone = formData.get('emergencyContactPhone') as string;
 
-    const name = `${title}${firstName} ${lastName}`;
+    const name = `${title} ${firstName} ${lastName}`;
 
     const newErrors: { cid?: string; dob?: string; passport?: string } = {};
 
@@ -199,7 +202,7 @@ export default function Registration() {
     e.preventDefault();
     if (!editingPatient) return;
 
-    const fullName = `${editForm.title}${editForm.firstName} ${editForm.lastName}`;
+    const fullName = `${editForm.title} ${editForm.firstName} ${editForm.lastName}`;
     const updatedData = { ...editForm, name: fullName };
 
     try {

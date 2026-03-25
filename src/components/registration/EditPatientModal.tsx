@@ -179,7 +179,14 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
                     <input 
                       type="checkbox" 
                       checked={isForeigner}
-                      onChange={(e) => setIsForeigner(e.target.checked)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsForeigner(checked);
+                        setEditForm(prev => ({ 
+                          ...prev, 
+                          nationality: checked ? '' : 'ไทย' 
+                        }));
+                      }}
                       className="w-3 h-3 text-blue-600 rounded border-gray-300 focus:ring-blue-500" 
                     />
                     <span className="text-[10px] font-bold text-gray-700">ชาวต่างชาติ</span>
