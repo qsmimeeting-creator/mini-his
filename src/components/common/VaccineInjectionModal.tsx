@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { X, Syringe, MapPin, Navigation, Info, CheckCircle2, Send } from 'lucide-react';
+import { X, Syringe, MapPin, Navigation, Info, CheckCircle2 } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
-import { DestinationSelector } from './DestinationSelector';
 
 interface VaccineInjectionModalProps {
   visit: Visit;
@@ -39,7 +38,7 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
     }))
   );
 
-  const [nextStatus, setNextStatus] = useState<VisitStatus>('COMPLETED');
+  const nextStatus: VisitStatus = 'COMPLETED';
 
   const handleUpdateRecord = (index: number, field: keyof InjectionRecord, value: string) => {
     const newRecords = [...injectionRecords];
@@ -165,13 +164,7 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
               ))}
             </div>
 
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-6 border-t border-gray-100">
-              <div className="flex-1 w-full">
-                <DestinationSelector 
-                  selectedDestination={nextStatus}
-                  onChange={setNextStatus}
-                />
-              </div>
+            <div className="flex flex-col md:flex-row justify-end items-center gap-4 pt-6 border-t border-gray-100">
               <div className="flex gap-3 shrink-0">
                 <button 
                   type="button"

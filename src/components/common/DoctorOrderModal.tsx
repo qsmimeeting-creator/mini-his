@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { X, Activity, Thermometer, Heart, Weight, Scale, CheckCircle2, ClipboardList, AlertTriangle, Search, Filter, Send } from 'lucide-react';
+import { X, Activity, Thermometer, Heart, Weight, Scale, CheckCircle2, ClipboardList, AlertTriangle, Search, Filter } from 'lucide-react';
 import { Visit, Vaccine, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
-import { DestinationSelector } from './DestinationSelector';
 
 interface DoctorOrderModalProps {
   visit: Visit;
@@ -24,7 +23,7 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
   const [selectedType, setSelectedType] = useState<string>('all');
   const [doctorNote, setDoctorNote] = useState(visit.data?.doctorNote || '');
   const [diagnosis, setDiagnosis] = useState(visit.data?.diagnosis || '');
-  const [nextStatus, setNextStatus] = useState<VisitStatus>('POST_DOCTOR_PENDING');
+  const nextStatus: VisitStatus = 'POST_DOCTOR_PENDING';
   
   const patient = patients.find(p => p.id === visit.patientId);
 
@@ -210,14 +209,6 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
                     />
                   </div>
                 </div>
-              </div>
-
-              {/* Destination Selection */}
-              <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-                <DestinationSelector 
-                  selectedDestination={nextStatus}
-                  onChange={setNextStatus}
-                />
               </div>
             </div>
 

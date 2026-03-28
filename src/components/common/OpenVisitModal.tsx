@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { CustomModal } from './CustomModal';
-import { DestinationSelector } from './DestinationSelector';
 import { VisitStatus, Patient } from '../../types';
 import { Send } from 'lucide-react';
 
@@ -15,7 +14,7 @@ export const OpenVisitModal: React.FC<OpenVisitModalProps> = ({
   onClose,
   onConfirm
 }) => {
-  const [nextStatus, setNextStatus] = useState<VisitStatus>('SCREENING_PENDING');
+  const nextStatus: VisitStatus = 'SCREENING_PENDING';
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleConfirm = async () => {
@@ -39,17 +38,6 @@ export const OpenVisitModal: React.FC<OpenVisitModalProps> = ({
           <p className="text-sm text-blue-600 mb-1">ผู้ป่วย</p>
           <p className="text-lg font-bold text-blue-900">{patient.name}</p>
           <p className="text-xs text-blue-500 mt-1">HN: {patient.hn}</p>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-gray-700 font-bold">
-            <Send size={18} />
-            <span>ส่งต่อไปยัง (Next Step)</span>
-          </div>
-          <DestinationSelector 
-            value={nextStatus} 
-            onChange={setNextStatus} 
-          />
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">

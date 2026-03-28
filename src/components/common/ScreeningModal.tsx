@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Activity, ClipboardCheck, Scale, Send } from 'lucide-react';
+import { X, Activity, ClipboardCheck, Scale } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
-import { DestinationSelector } from './DestinationSelector';
 
 interface ScreeningModalProps {
   visit: Visit;
@@ -16,7 +15,7 @@ export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, 
   const patient = patients.find(p => p.id === visit.patientId);
 
   const [screeningNote, setScreeningNote] = useState(visit.data?.screeningNote || '');
-  const [nextStatus, setNextStatus] = useState<VisitStatus>('DOCTOR_PENDING');
+  const nextStatus: VisitStatus = 'DOCTOR_PENDING';
 
   const [formData, setFormData] = useState({
     temp: visit.data?.temp || '',
@@ -296,13 +295,6 @@ export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, 
                 onChange={e => setScreeningNote(e.target.value)}
                 className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
                 placeholder="ระบุอาการเบื้องต้น หรือบันทึกอื่นๆ..."
-              />
-            </div>
-
-            <div className="pt-4 border-t border-gray-100">
-              <DestinationSelector 
-                selectedDestination={nextStatus}
-                onChange={setNextStatus}
               />
             </div>
 

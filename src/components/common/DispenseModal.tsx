@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { X, Package, CheckCircle2, AlertTriangle, Info, Send } from 'lucide-react';
+import { X, Package, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
-import { DestinationSelector } from './DestinationSelector';
 
 interface DispenseModalProps {
   visit: Visit;
@@ -15,7 +14,7 @@ export const DispenseModal: React.FC<DispenseModalProps> = ({ visit, onClose, on
   const { patients, vaccines } = useAppContext();
   const patient = patients.find(p => p.id === visit.patientId);
   const orders = visit.data?.orders || [];
-  const [nextStatus, setNextStatus] = useState<VisitStatus>('VACCINE_PENDING');
+  const nextStatus: VisitStatus = 'INJECTION_PENDING';
 
   const dispenseItems = orders.map((order: any) => {
     const vaccine = vaccines.find(v => v.id === order.id);
@@ -132,13 +131,7 @@ export const DispenseModal: React.FC<DispenseModalProps> = ({ visit, onClose, on
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex-1 w-full">
-            <DestinationSelector 
-              selectedDestination={nextStatus}
-              onChange={setNextStatus}
-            />
-          </div>
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex flex-col md:flex-row justify-end items-center gap-4">
           <div className="flex gap-3 shrink-0">
             <button 
               onClick={onClose}

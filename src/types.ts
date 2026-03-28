@@ -74,10 +74,6 @@ export interface Visit {
     orderedAt?: string;
     orderedBy?: string;
     
-    // Post Doctor
-    postDoctorVerifiedAt?: string;
-    postDoctorVerifiedBy?: string;
-    
     // Cashier
     paidAt?: string;
     paidBy?: string;
@@ -108,8 +104,6 @@ export type VisitStatus =
   | 'SCREENING_IN_PROGRESS' 
   | 'DOCTOR_PENDING' 
   | 'DOCTOR_IN_PROGRESS' 
-  | 'POST_DOCTOR_PENDING' 
-  | 'POST_DOCTOR_IN_PROGRESS' 
   | 'PAYMENT_PENDING' 
   | 'PAYMENT_IN_PROGRESS' 
   | 'DISPENSE_PENDING' 

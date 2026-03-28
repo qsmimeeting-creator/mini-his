@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { X, CreditCard, Receipt, CheckCircle2, Wallet, Send } from 'lucide-react';
+import { X, CreditCard, Receipt, CheckCircle2, Wallet } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
-import { DestinationSelector } from './DestinationSelector';
 
 interface CashierModalProps {
   visit: Visit;
@@ -19,7 +18,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onCo
 
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [receivedAmount, setReceivedAmount] = useState<string>('');
-  const [nextStatus, setNextStatus] = useState<VisitStatus>('DISPENSE_PENDING');
+  const nextStatus: VisitStatus = 'DISPENSE_PENDING';
 
   const change = parseFloat(receivedAmount) - totalAmount;
 
@@ -139,13 +138,6 @@ export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onCo
                       ฿{(change > 0 ? change : 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </span>
                   </div>
-                </div>
-
-                <div className="pt-4 border-t border-gray-100">
-                  <DestinationSelector 
-                    selectedDestination={nextStatus}
-                    onChange={setNextStatus}
-                  />
                 </div>
 
                 <button

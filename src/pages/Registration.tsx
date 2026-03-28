@@ -3,7 +3,6 @@ import { UserPlus, Users } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { SectionTitle } from '../components/common/SectionTitle';
 import { Patient, VisitStatus } from '../types';
-import { DESTINATIONS } from '../constants/destinations';
 import { PatientDetailsModal } from '../components/common/PatientDetailsModal';
 import { RegistrationForm } from '../components/registration/RegistrationForm';
 import { PatientMasterList } from '../components/registration/PatientMasterList';
@@ -150,8 +149,6 @@ export default function Registration() {
         // Increment formKey to reset the controlled component
         setFormKey(prev => prev + 1);
         
-        const destinationLabel = DESTINATIONS.find(d => d.value === nextStatus)?.label || 'จุดคัดกรอง';
-
         setModalConfig({
           isOpen: true,
           type: 'alert',
@@ -163,9 +160,6 @@ export default function Registration() {
                 <div className="flex items-center gap-2">
                   <span className="text-blue-600 font-medium">HN:</span>
                   <span className="text-blue-800 font-bold text-lg">{newPatient.hn}</span>
-                </div>
-                <div className="text-blue-700 text-sm font-medium border-t border-blue-200 pt-2">
-                  ส่งต่อไปยัง {destinationLabel}
                 </div>
               </div>
             </div>
@@ -195,7 +189,6 @@ export default function Registration() {
     try {
       const success = await openVisit(openingVisitPatient, nextStatus);
       if (success) {
-        const destinationLabel = DESTINATIONS.find(d => d.value === nextStatus)?.label || 'จุดคัดกรอง';
         setModalConfig({
           isOpen: true,
           type: 'alert',
@@ -203,9 +196,6 @@ export default function Registration() {
           message: (
             <div className="space-y-3 mt-2">
               <p className="text-gray-700 text-base">เปิด Visit ใหม่สำหรับ <span className="font-bold text-blue-700">{openingVisitPatient.name}</span> เรียบร้อยแล้ว</p>
-              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                <p className="text-blue-700 font-medium text-sm">ส่งต่อไปยัง {destinationLabel}</p>
-              </div>
             </div>
           )
         });

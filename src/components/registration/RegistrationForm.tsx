@@ -1,6 +1,5 @@
 import React from 'react';
-import { Plus, User, Heart, Send } from 'lucide-react';
-import { DestinationSelector } from '../common/DestinationSelector';
+import { Plus, User, Heart } from 'lucide-react';
 import { VisitStatus } from '../../types';
 import {
   searchAddressBySubDistrict,
@@ -42,7 +41,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [phone, setPhone] = React.useState('');
   const [emergencyContactPhone, setEmergencyContactPhone] = React.useState('');
   const [nationality, setNationality] = React.useState('ไทย');
-  const [nextStatus, setNextStatus] = React.useState<VisitStatus>('SCREENING_PENDING');
+  const nextStatus: VisitStatus = 'SCREENING_PENDING';
 
   React.useEffect(() => {
     if (birthDate.day && birthDate.month && birthDate.year) {
@@ -625,18 +624,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           </div>
         </div>
 
-        {/* Destination Section */}
-        <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
-          <div className="flex items-center gap-2 text-gray-700 font-bold border-b border-gray-200 pb-2">
-            <Send size={18} />
-            <span>ส่งต่อไปยัง (Next Step)</span>
-          </div>
-          <DestinationSelector 
-            value={nextStatus} 
-            onChange={setNextStatus} 
-          />
-        </div>
-
         <div className="flex justify-end pt-4 border-t border-gray-100">
           <button 
             type="reset" 
@@ -652,7 +639,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               setPhone('');
               setEmergencyContactPhone('');
               setNationality('ไทย');
-              setNextStatus('SCREENING_PENDING');
               setAddressForm({
                 subDistrict: '',
                 district: '',

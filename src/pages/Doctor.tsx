@@ -54,7 +54,7 @@ export default function Doctor() {
         title: 'สั่งวัคซีนสำเร็จ',
         message: (
           <div className="space-y-4 mt-2">
-            <p className="text-gray-700">แพทย์สั่งจ่ายวัคซีนให้กับผู้ป่วยเรียบร้อยแล้ว ส่งต่อไปยังพยาบาลหลังพบแพทย์เพื่อตรวจสอบ</p>
+            <p className="text-gray-700">แพทย์สั่งจ่ายวัคซีนให้กับผู้ป่วยเรียบร้อยแล้ว</p>
             <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 space-y-2">
               <div className="text-xs font-bold text-gray-500 uppercase border-b border-gray-200 pb-2 mb-2">รายการวัคซีนที่สั่งจ่าย</div>
               {orders.map((o, idx) => (
