@@ -1,5 +1,7 @@
 import React from 'react';
-import { Plus, User, Heart } from 'lucide-react';
+import { Plus, User, Heart, Send } from 'lucide-react';
+import { DestinationSelector } from '../common/DestinationSelector';
+import { VisitStatus } from '../../types';
 import {
   searchAddressBySubDistrict,
   searchAddressByDistrict,
@@ -30,17 +32,23 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [isChecking, setIsChecking] = React.useState(false);
   const [birthDate, setBirthDate] = React.useState({ day: '', month: '', year: '' });
   const [age, setAge] = React.useState('');
+  const [era, setEra] = React.useState<'BE' | 'AD'>('BE');
   const [title, setTitle] = React.useState('นาย');
   const [otherTitle, setOtherTitle] = React.useState('');
+  const [titleEn, setTitleEn] = React.useState('Mr.');
+  const [otherTitleEn, setOtherTitleEn] = React.useState('');
   const [gender, setGender] = React.useState('');
   const [phoneType, setPhoneType] = React.useState<'mobile' | 'home'>('mobile');
   const [phone, setPhone] = React.useState('');
   const [emergencyContactPhone, setEmergencyContactPhone] = React.useState('');
   const [nationality, setNationality] = React.useState('ไทย');
+  const [nextStatus, setNextStatus] = React.useState<VisitStatus>('SCREENING_PENDING');
 
   React.useEffect(() => {
     if (birthDate.day && birthDate.month && birthDate.year) {
-      const birth = new Date(parseInt(birthDate.year) - 543, parseInt(birthDate.month) - 1, parseInt(birthDate.day));
+      const yearNum = parseInt(birthDate.year);
+      const gregorianYear = era === 'BE' ? yearNum - 543 : yearNum;
+      const birth = new Date(gregorianYear, parseInt(birthDate.month) - 1, parseInt(birthDate.day));
       const today = new Date();
       let calculatedAge = today.getFullYear() - birth.getFullYear();
       const m = today.getMonth() - birth.getMonth();
@@ -51,7 +59,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     } else {
       setAge('');
     }
-  }, [birthDate]);
+  }, [birthDate, era]);
 
   React.useEffect(() => {
     if (['นาย', 'เด็กชาย'].includes(title)) {
@@ -73,13 +81,14 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   const isoBirthDate = React.useMemo(() => {
     if (birthDate.day && birthDate.month && birthDate.year && birthDate.year.length === 4) {
-      const gregorianYear = parseInt(birthDate.year) - 543;
+      const yearNum = parseInt(birthDate.year);
+      const gregorianYear = era === 'BE' ? yearNum - 543 : yearNum;
       const month = birthDate.month.padStart(2, '0');
       const day = birthDate.day.padStart(2, '0');
       return `${gregorianYear}-${month}-${day}`;
     }
     return '';
-  }, [birthDate]);
+  }, [birthDate, era]);
 
   const [addressForm, setAddressForm] = React.useState({
     subDistrict: '',
@@ -178,6 +187,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
       <form onSubmit={onSubmit} className="space-y-8">
         <input type="hidden" name="birthDate" value={isoBirthDate} />
+        <input type="hidden" name="nextStatus" value={nextStatus} />
         {/* Identification Section - MOVED TO TOP */}
         <div className="space-y-4 bg-blue-50/30 p-4 rounded-xl border border-blue-100">
           <div className="flex items-center gap-2 text-blue-800 font-bold border-b border-blue-100 pb-2">
@@ -291,6 +301,28 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               <input name="lastName" required className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="นามสกุล" />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">คำนำหน้า (EN)</label>
+              <select name="titleEn" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="Mr.">Mr.</option>
+                <option value="Mrs.">Mrs.</option>
+                <option value="Ms.">Ms.</option>
+                <option value="Miss">Miss</option>
+                <option value="Master">Master</option>
+                <option value="Other">Other</option>
+              </select>
+              {titleEn === 'Other' && (
+                <input name="otherTitleEn" value={otherTitleEn} onChange={(e) => setOtherTitleEn(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mt-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Specify Title (EN)" />
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">ชื่อ (EN)</label>
+              <input name="firstNameEn" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="First Name" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">นามสกุล (EN)</label>
+              <input name="lastNameEn" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Last Name" />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">เพศ <span className="text-red-500">*</span></label>
               <select name="gender" required value={gender} onChange={(e) => setGender(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="">กรุณาเลือก</option>
@@ -299,17 +331,87 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">วัน/เดือน/ปีเกิด (พ.ศ.) <span className="text-red-500">*</span></label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium text-gray-700">วัน/เดือน/ปีเกิด ({era === 'BE' ? 'พ.ศ.' : 'ค.ศ.'}) <span className="text-red-500">*</span></label>
+                <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setEra('BE')}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all ${
+                      era === 'BE' 
+                        ? 'bg-white text-blue-600 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    พ.ศ.
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEra('AD')}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all ${
+                      era === 'AD' 
+                        ? 'bg-white text-blue-600 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    ค.ศ.
+                  </button>
+                </div>
+              </div>
               <div className="flex gap-2">
-                <select name="birthDay" required value={birthDate.day} onChange={(e) => setBirthDate({...birthDate, day: e.target.value})} className={`flex-1 border ${errors.dob ? 'border-red-500' : 'border-gray-300'} rounded-md px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none`}>
-                  <option value="">วัน</option>
-                  {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
-                </select>
-                <select name="birthMonth" required value={birthDate.month} onChange={(e) => setBirthDate({...birthDate, month: e.target.value})} className={`flex-1 border ${errors.dob ? 'border-red-500' : 'border-gray-300'} rounded-md px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none`}>
-                  <option value="">เดือน</option>
-                  {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                </select>
-                <input name="birthYear" required maxLength={4} value={birthDate.year} onChange={(e) => setBirthDate({...birthDate, year: e.target.value.replace(/\D/g, '')})} className={`flex-1 border ${errors.dob ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none`} placeholder="ปี พ.ศ." />
+                <div className="relative flex-1">
+                  <input
+                    list="days-list"
+                    name="birthDay"
+                    required
+                    value={birthDate.day}
+                    onChange={(e) => setBirthDate({...birthDate, day: e.target.value})}
+                    placeholder="วัน"
+                    className={`w-full border ${errors.dob ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none`}
+                  />
+                  <datalist id="days-list">
+                    {[...Array(31)].map((_, i) => <option key={i+1} value={i+1} />)}
+                  </datalist>
+                </div>
+                <div className="relative flex-[2]">
+                  <input
+                    list="months-list"
+                    name="birthMonth"
+                    required
+                    value={birthDate.month}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const monthMap: {[key: string]: string} = {
+                        'มกราคม': '1', 'กุมภาพันธ์': '2', 'มีนาคม': '3', 'เมษายน': '4',
+                        'พฤษภาคม': '5', 'มิถุนายน': '6', 'กรกฎาคม': '7', 'สิงหาคม': '8',
+                        'กันยายน': '9', 'ตุลาคม': '10', 'พฤศจิกายน': '11', 'ธันวาคม': '12'
+                      };
+                      if (monthMap[val]) {
+                        setBirthDate({...birthDate, month: monthMap[val]});
+                      } else if (/^\d+$/.test(val) && parseInt(val) >= 1 && parseInt(val) <= 12) {
+                        setBirthDate({...birthDate, month: val});
+                      } else {
+                        setBirthDate({...birthDate, month: val});
+                      }
+                    }}
+                    placeholder="เดือน"
+                    className={`w-full border ${errors.dob ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none`}
+                  />
+                  <datalist id="months-list">
+                    {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map((m, i) => (
+                      <option key={i+1} value={m}>{i+1}</option>
+                    ))}
+                  </datalist>
+                </div>
+                <input 
+                  name="birthYear" 
+                  required 
+                  maxLength={4} 
+                  value={birthDate.year} 
+                  onChange={(e) => setBirthDate({...birthDate, year: e.target.value.replace(/\D/g, '')})} 
+                  className={`flex-1 border ${errors.dob ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none`} 
+                  placeholder={era === 'BE' ? "ปี พ.ศ." : "ปี ค.ศ."} 
+                />
               </div>
               {errors.dob && <p className="text-red-500 text-xs mt-1 font-bold">{errors.dob}</p>}
             </div>
@@ -523,6 +625,18 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           </div>
         </div>
 
+        {/* Destination Section */}
+        <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+          <div className="flex items-center gap-2 text-gray-700 font-bold border-b border-gray-200 pb-2">
+            <Send size={18} />
+            <span>ส่งต่อไปยัง (Next Step)</span>
+          </div>
+          <DestinationSelector 
+            value={nextStatus} 
+            onChange={setNextStatus} 
+          />
+        </div>
+
         <div className="flex justify-end pt-4 border-t border-gray-100">
           <button 
             type="reset" 
@@ -533,9 +647,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               setAge('');
               setTitle('นาย');
               setOtherTitle('');
+              setTitleEn('Mr.');
+              setOtherTitleEn('');
               setPhone('');
               setEmergencyContactPhone('');
               setNationality('ไทย');
+              setNextStatus('SCREENING_PENDING');
               setAddressForm({
                 subDistrict: '',
                 district: '',

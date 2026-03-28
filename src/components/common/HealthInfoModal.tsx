@@ -45,7 +45,7 @@ export const HealthInfoModal: React.FC<HealthInfoModalProps> = ({ patient, onClo
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[95vh]">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-red-50">
           <div className="flex items-center gap-3">

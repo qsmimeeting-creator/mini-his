@@ -2,21 +2,25 @@ import React, { useState } from 'react';
 import { UserPlus, Users } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { SectionTitle } from '../components/common/SectionTitle';
-import { Patient } from '../types';
+import { Patient, VisitStatus } from '../types';
+import { DESTINATIONS } from '../constants/destinations';
 import { PatientDetailsModal } from '../components/common/PatientDetailsModal';
 import { RegistrationForm } from '../components/registration/RegistrationForm';
 import { PatientMasterList } from '../components/registration/PatientMasterList';
 import { EditPatientModal } from '../components/registration/EditPatientModal';
+import { OpenVisitModal } from '../components/common/OpenVisitModal';
 
 export default function Registration() {
   const { patients, registerPatient, updatePatient, deletePatient, openVisit, setModalConfig } = useAppContext();
   const [errors, setErrors] = useState<{ cid?: string; dob?: string; passport?: string }>({});
   const [activeTab, setActiveTab] = useState<'register' | 'master'>('register');
   const [searchTerm, setSearchTerm] = useState('');
+  const [formKey, setFormKey] = useState(0);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [editForm, setEditForm] = useState<Partial<Patient>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [openingVisitPatient, setOpeningVisitPatient] = useState<Patient | null>(null);
   const [displayLimit, setDisplayLimit] = useState(5);
 
   // Reset display limit when search term or tab changes
@@ -46,9 +50,15 @@ export default function Registration() {
     const selectedTitle = formData.get('title') as string;
     const otherTitle = formData.get('otherTitle') as string;
     const title = selectedTitle === 'อื่นๆ' ? otherTitle : selectedTitle;
+
+    const selectedTitleEn = formData.get('titleEn') as string;
+    const otherTitleEn = formData.get('otherTitleEn') as string;
+    const titleEn = selectedTitleEn === 'Other' ? otherTitleEn : selectedTitleEn;
     
     const firstName = formData.get('firstName') as string;
     const lastName = formData.get('lastName') as string;
+    const firstNameEn = formData.get('firstNameEn') as string;
+    const lastNameEn = formData.get('lastNameEn') as string;
     const gender = formData.get('gender') as string;
     const citizenId = formData.get('citizenId') as string;
     const birthDate = formData.get('birthDate') as string;
@@ -68,6 +78,7 @@ export default function Registration() {
     const currentMedication = formData.get('currentMedication') as string;
     const emergencyContactName = formData.get('emergencyContactName') as string;
     const emergencyContactPhone = formData.get('emergencyContactPhone') as string;
+    const nextStatus = (formData.get('nextStatus') as VisitStatus) || 'SCREENING_PENDING';
 
     const name = `${title} ${firstName} ${lastName}`;
 
@@ -109,6 +120,9 @@ export default function Registration() {
         title,
         firstName,
         lastName,
+        titleEn,
+        firstNameEn,
+        lastNameEn,
         gender,
         citizenId,
         birthDate,
@@ -130,25 +144,34 @@ export default function Registration() {
         emergencyContactPhone
       });
       
-      await openVisit(newPatient);
+      const success = await openVisit(newPatient, nextStatus);
       
-      // Reset form
-      form.reset();
-      
-      setModalConfig({
-        isOpen: true,
-        type: 'alert',
-        title: 'ลงทะเบียนสำเร็จ',
-        message: (
-          <div className="space-y-3 mt-2">
-            <p className="text-gray-700 text-base">ลงทะเบียนผู้ป่วยและเปิด Visit ใหม่เรียบร้อยแล้ว</p>
-            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-center gap-2">
-              <span className="text-blue-600 font-medium">HN:</span>
-              <span className="text-blue-800 font-bold text-lg">{newPatient.hn}</span>
+      if (success) {
+        // Increment formKey to reset the controlled component
+        setFormKey(prev => prev + 1);
+        
+        const destinationLabel = DESTINATIONS.find(d => d.value === nextStatus)?.label || 'จุดคัดกรอง';
+
+        setModalConfig({
+          isOpen: true,
+          type: 'alert',
+          title: 'ลงทะเบียนสำเร็จ',
+          message: (
+            <div className="space-y-3 mt-2">
+              <p className="text-gray-700 text-base">ลงทะเบียนผู้ป่วยและเปิด Visit ใหม่เรียบร้อยแล้ว</p>
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-600 font-medium">HN:</span>
+                  <span className="text-blue-800 font-bold text-lg">{newPatient.hn}</span>
+                </div>
+                <div className="text-blue-700 text-sm font-medium border-t border-blue-200 pt-2">
+                  ส่งต่อไปยัง {destinationLabel}
+                </div>
+              </div>
             </div>
-          </div>
-        )
-      });
+          )
+        });
+      }
     } catch (error) {
       console.error('Registration error:', error);
       setModalConfig({
@@ -162,24 +185,32 @@ export default function Registration() {
     }
   };
 
-  const handleOpenVisit = async (patient: any) => {
-    if (isSubmitting) return;
+  const handleOpenVisit = (patient: Patient) => {
+    setOpeningVisitPatient(patient);
+  };
+
+  const confirmOpenVisit = async (nextStatus: VisitStatus) => {
+    if (!openingVisitPatient) return;
     setIsSubmitting(true);
     try {
-      await openVisit(patient);
-      setModalConfig({
-        isOpen: true,
-        type: 'alert',
-        title: 'เปิด Visit สำเร็จ',
-        message: (
-          <div className="space-y-3 mt-2">
-            <p className="text-gray-700 text-base">เปิด Visit ใหม่สำหรับ <span className="font-bold text-blue-700">{patient.name}</span> เรียบร้อยแล้ว</p>
-            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-              <p className="text-blue-700 font-medium text-sm">ส่งต่อไปยังจุดคัดกรอง</p>
+      const success = await openVisit(openingVisitPatient, nextStatus);
+      if (success) {
+        const destinationLabel = DESTINATIONS.find(d => d.value === nextStatus)?.label || 'จุดคัดกรอง';
+        setModalConfig({
+          isOpen: true,
+          type: 'alert',
+          title: 'เปิด Visit สำเร็จ',
+          message: (
+            <div className="space-y-3 mt-2">
+              <p className="text-gray-700 text-base">เปิด Visit ใหม่สำหรับ <span className="font-bold text-blue-700">{openingVisitPatient.name}</span> เรียบร้อยแล้ว</p>
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                <p className="text-blue-700 font-medium text-sm">ส่งต่อไปยัง {destinationLabel}</p>
+              </div>
             </div>
-          </div>
-        )
-      });
+          )
+        });
+        setOpeningVisitPatient(null);
+      }
     } catch (error) {
       console.error('Open visit error:', error);
       setModalConfig({
@@ -292,6 +323,7 @@ export default function Registration() {
 
       {activeTab === 'register' && (
         <RegistrationForm 
+          key={formKey}
           onSubmit={handleRegister}
           isSubmitting={isSubmitting}
           errors={errors}
@@ -328,6 +360,14 @@ export default function Registration() {
         <PatientDetailsModal 
           patientId={selectedPatientId} 
           onClose={() => setSelectedPatientId(null)} 
+        />
+      )}
+
+      {openingVisitPatient && (
+        <OpenVisitModal 
+          patient={openingVisitPatient}
+          onClose={() => setOpeningVisitPatient(null)}
+          onConfirm={confirmOpenVisit}
         />
       )}
     </div>

@@ -1,20 +1,30 @@
 import React, { useState } from 'react';
-import { X, Activity, Thermometer, Heart, Weight, Scale, CheckCircle2, ClipboardList, AlertTriangle, Search, Filter } from 'lucide-react';
-import { Visit, Vaccine } from '../../types';
+import { X, Activity, Thermometer, Heart, Weight, Scale, CheckCircle2, ClipboardList, AlertTriangle, Search, Filter, Send } from 'lucide-react';
+import { Visit, Vaccine, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
+import { DestinationSelector } from './DestinationSelector';
 
 interface DoctorOrderModalProps {
   visit: Visit;
   onClose: () => void;
-  onConfirm: (selectedVaccines: string[]) => void;
+  onConfirm: (selectedVaccines: string[], additionalData: { doctorNote: string, diagnosis: string }, nextStatus: VisitStatus) => void;
 }
 
 export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClose, onConfirm }) => {
   const { vaccines, patients } = useAppContext();
-  const [selectedVaccines, setSelectedVaccines] = useState<string[]>([]);
+  const [selectedVaccines, setSelectedVaccines] = useState<string[]>(() => {
+    // If there are existing orders, pre-select them
+    if (visit.data?.orders && Array.isArray(visit.data.orders)) {
+      return visit.data.orders.map((o: any) => o.id).filter(Boolean);
+    }
+    return [];
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [doctorNote, setDoctorNote] = useState(visit.data?.doctorNote || '');
+  const [diagnosis, setDiagnosis] = useState(visit.data?.diagnosis || '');
+  const [nextStatus, setNextStatus] = useState<VisitStatus>('POST_DOCTOR_PENDING');
   
   const patient = patients.find(p => p.id === visit.patientId);
 
@@ -35,13 +45,13 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirm(selectedVaccines);
+    onConfirm(selectedVaccines, { doctorNote, diagnosis }, nextStatus);
   };
 
   if (!patient) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <div className="flex items-center gap-3">
@@ -169,6 +179,45 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Doctor's Notes & Diagnosis */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-blue-700 font-bold border-b border-gray-50 pb-2">
+                  <ClipboardList size={18} />
+                  <span>บันทึกการตรวจและวินิจฉัย</span>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-gray-500 uppercase">การวินิจฉัย (Diagnosis)</label>
+                    <input 
+                      type="text"
+                      value={diagnosis}
+                      onChange={e => setDiagnosis(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="เช่น ไข้หวัด, ปวดศีรษะ..."
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-gray-500 uppercase">บันทึกเพิ่มเติม (Doctor's Note)</label>
+                    <textarea 
+                      rows={3}
+                      value={doctorNote}
+                      onChange={e => setDoctorNote(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                      placeholder="ระบุรายละเอียดการตรวจ..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Destination Selection */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                <DestinationSelector 
+                  selectedDestination={nextStatus}
+                  onChange={setNextStatus}
+                />
               </div>
             </div>
 

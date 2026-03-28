@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Activity, Stethoscope, CreditCard, Pill, Syringe, 
-  Database, Plus, Search, Bell, Menu, X, LogOut, LogIn, CheckCircle, BarChart3
+  Database, Plus, Search, Bell, Menu, X, LogOut, LogIn, CheckCircle, BarChart3, RotateCcw
 } from 'lucide-react';
 
 import { useAppContext } from './context/AppContext';
@@ -20,6 +20,7 @@ import Cashier from './pages/Cashier';
 import Dispense from './pages/Dispense';
 import Injection from './pages/Injection';
 import DataManagement from './pages/DataManagement';
+import VisitHistory from './pages/VisitHistory';
 
 const SidebarItem = ({ path, icon: Icon, label, isActive, onClick }: { path: string, icon: any, label: string, isActive: boolean, onClick: () => void }) => {
   return (
@@ -108,6 +109,7 @@ export default function App() {
             <SidebarItem path="/injection" icon={Syringe} label="ห้องฉีดยา" isActive={location.pathname === '/injection'} onClick={() => { navigate('/injection'); setIsSidebarOpen(false); }} />
             <SidebarItem path="/data-management" icon={BarChart3} label="จัดการข้อมูล" isActive={location.pathname === '/data-management'} onClick={() => { navigate('/data-management'); setIsSidebarOpen(false); }} />
             <SidebarItem path="/vaccine-inventory" icon={Database} label="จัดการวัคซีน" isActive={location.pathname === '/vaccine-inventory'} onClick={() => { navigate('/vaccine-inventory'); setIsSidebarOpen(false); }} />
+            <SidebarItem path="/visit-history" icon={RotateCcw} label="ค้นหาและแก้ไขงาน" isActive={location.pathname === '/visit-history'} onClick={() => { navigate('/visit-history'); setIsSidebarOpen(false); }} />
           </nav>
         </div>
       </aside>
@@ -141,6 +143,7 @@ export default function App() {
             <Route path="/dispense" element={<Dispense />} />
             <Route path="/injection" element={<Injection />} />
             <Route path="/data-management" element={<DataManagement />} />
+            <Route path="/visit-history" element={<VisitHistory />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

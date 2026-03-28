@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { X, Syringe, MapPin, Navigation, Info, CheckCircle2 } from 'lucide-react';
-import { Visit } from '../../types';
+import { X, Syringe, MapPin, Navigation, Info, CheckCircle2, Send } from 'lucide-react';
+import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
+import { DestinationSelector } from './DestinationSelector';
 
 interface VaccineInjectionModalProps {
   visit: Visit;
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: any, nextStatus: VisitStatus) => void;
 }
 
 interface InjectionRecord {
@@ -27,6 +28,7 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
   const lotsArray = dispensedLots.split(',').map((l: string) => l.trim());
 
   const [injectionRecords, setInjectionRecords] = useState<InjectionRecord[]>(
+    visit.data?.injectionRecords || 
     orders.map((o: any, index: number) => ({
       vaccineId: o.id,
       vaccineName: o.name,
@@ -36,6 +38,8 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
       note: '',
     }))
   );
+
+  const [nextStatus, setNextStatus] = useState<VisitStatus>('COMPLETED');
 
   const handleUpdateRecord = (index: number, field: keyof InjectionRecord, value: string) => {
     const newRecords = [...injectionRecords];
@@ -48,11 +52,11 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
     onSave({
       injectionRecords,
       injectedAt: new Date().toISOString()
-    });
+    }, nextStatus);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <div className="flex items-center gap-3">
@@ -161,21 +165,29 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
               ))}
             </div>
 
-            <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
-              <button 
-                type="button"
-                onClick={onClose}
-                className="px-8 py-3 text-sm font-bold text-gray-700 bg-white border-2 border-gray-100 rounded-xl hover:bg-gray-50 hover:border-gray-200 transition-all"
-              >
-                ยกเลิก
-              </button>
-              <button 
-                type="submit"
-                className="px-12 py-3 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center gap-2"
-              >
-                <CheckCircle2 size={20} />
-                ยืนยันการฉีดวัคซีนและปิดรายการ
-              </button>
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-6 border-t border-gray-100">
+              <div className="flex-1 w-full">
+                <DestinationSelector 
+                  selectedDestination={nextStatus}
+                  onChange={setNextStatus}
+                />
+              </div>
+              <div className="flex gap-3 shrink-0">
+                <button 
+                  type="button"
+                  onClick={onClose}
+                  className="px-8 py-3 text-sm font-bold text-gray-700 bg-white border-2 border-gray-100 rounded-xl hover:bg-gray-50 hover:border-gray-200 transition-all"
+                >
+                  ยกเลิก
+                </button>
+                <button 
+                  type="submit"
+                  className="px-12 py-3 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center gap-2"
+                >
+                  <CheckCircle2 size={20} />
+                  ยืนยันการฉีดวัคซีน
+                </button>
+              </div>
             </div>
           </form>
         </div>

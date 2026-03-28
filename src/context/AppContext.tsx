@@ -24,6 +24,8 @@ interface AppContextType {
   vaccines: Vaccine[];
   modalConfig: ModalConfig;
   setModalConfig: (config: ModalConfig) => void;
+  activeVisitId: string | null;
+  setActiveVisitId: (id: string | null) => void;
   registerPatient: (patient: Omit<Patient, 'id' | 'hn'>) => Promise<Patient>;
   updatePatient: (patientId: string, patientData: Partial<Patient>) => Promise<void>;
   deletePatient: (patientId: string) => Promise<void>;
@@ -45,6 +47,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [vaccines, setVaccines] = useState<Vaccine[]>([]);
+  const [activeVisitId, setActiveVisitId] = useState<string | null>(null);
   
   const [modalConfig, setModalConfig] = useState<ModalConfig>({
     isOpen: false, type: '', title: '', message: null
@@ -210,15 +213,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const openVisit = async (patient: Patient) => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    
+    // Check if patient already has a visit today (excluding VOID)
+    const existingVisit = visits.find(v => 
+      v.patientId === patient.id && 
+      v.timestamp.startsWith(todayStr) && 
+      v.status !== 'VOID'
+    );
+
+    if (existingVisit) {
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'ไม่สามารถเปิดการรับบริการได้',
+        message: (
+          <div className="space-y-2">
+            <p className="text-red-600 font-bold">ผู้ป่วยรายนี้มีการเปิดการรับบริการแล้วในวันนี้</p>
+            <p className="text-sm text-gray-600">VN: {existingVisit.vn}</p>
+            <p className="text-sm text-gray-600">สถานะปัจจุบัน: {existingVisit.status}</p>
+            <p className="text-xs text-gray-500 mt-2 italic">* 1 คน สามารถใช้เลข VN ได้เพียง 1 เลขต่อวันเท่านั้น</p>
+          </div>
+        )
+      });
+      return false;
+    }
+
     const id = `V${Date.now()}`;
-    const now = new Date().toISOString();
+    const timestamp = now.toISOString();
+    
+    // Calculate next VN sequence for today
+    const todayVisits = visits.filter(v => v.timestamp.startsWith(todayStr));
+    const nextVnSeq = todayVisits.length + 1;
+    const vn = `VN-${String(nextVnSeq).padStart(5, '0')}`;
+
     const newVisit: Visit = {
       id,
-      vn: `VN-${String(visits.length + 1).padStart(5, '0')}`,
+      vn,
       patientId: patient.id,
       patientName: patient.name,
       status: 'SCREENING_PENDING',
-      timestamp: now,
+      timestamp,
       visitType: 'Vaccination',
       servicePoint: 'OPD',
       registeredBy: user?.displayName || user?.email || 'System',
@@ -226,8 +262,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     try {
       await setDoc(doc(db, 'visits', id), newVisit);
+      return true;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `visits/${id}`);
+      return false;
     }
   };
 
@@ -345,6 +383,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       user, isAuthReady, login, logout,
       patients, visits, vaccines,
+      activeVisitId, setActiveVisitId,
       modalConfig, setModalConfig,
       registerPatient, updatePatient, deletePatient, openVisit, updateVisitStatus, updateVaccineStock,
       addVaccine, updateVaccine, deleteVaccine, voidVisit, resetSystem

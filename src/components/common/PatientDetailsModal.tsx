@@ -65,7 +65,7 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-gray-900/60 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
@@ -98,6 +98,14 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">ชื่อ-นามสกุล</span>
                 <p className="font-semibold text-gray-900">{patient.title} {patient.firstName} {patient.lastName}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-gray-500">ชื่อ-นามสกุล (EN)</span>
+                <p className="font-semibold text-gray-900">
+                  {patient.titleEn || patient.firstNameEn || patient.lastNameEn 
+                    ? `${patient.titleEn || ''} ${patient.firstNameEn || ''} ${patient.lastNameEn || ''}`.trim()
+                    : '-'}
+                </p>
               </div>
               <div className="space-y-1">
                 <span className="text-xs text-gray-500">เลขประจำตัวประชาชน / Passport</span>

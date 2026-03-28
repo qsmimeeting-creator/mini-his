@@ -5,6 +5,9 @@ export interface Patient {
   title: string;
   firstName: string;
   lastName: string;
+  titleEn?: string;
+  firstNameEn?: string;
+  lastNameEn?: string;
   birthDate: string; // dob
   age?: number;
   gender: string;

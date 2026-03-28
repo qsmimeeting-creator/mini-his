@@ -14,7 +14,7 @@ export const CustomModal = () => {
   if (!modalConfig.isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-900/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-gray-900/40 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 transform transition-all">
         <h3 className="text-2xl font-bold text-gray-900 mb-4">{modalConfig.title}</h3>
         <div className="text-base text-gray-600 mb-8 whitespace-pre-line leading-relaxed">{modalConfig.message}</div>

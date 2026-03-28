@@ -1,22 +1,24 @@
-import React from 'react';
-import { X, CheckCircle2, ClipboardList, AlertCircle } from 'lucide-react';
-import { Visit } from '../../types';
+import React, { useState } from 'react';
+import { X, CheckCircle2, ClipboardList, AlertCircle, Send } from 'lucide-react';
+import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
+import { DestinationSelector } from './DestinationSelector';
 
 interface PostDoctorModalProps {
   visit: Visit;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (nextStatus: VisitStatus) => void;
 }
 
 export const PostDoctorModal: React.FC<PostDoctorModalProps> = ({ visit, onClose, onConfirm }) => {
   const { patients } = useAppContext();
   const patient = patients.find(p => p.id === visit.patientId);
   const orders = visit.data?.orders || [];
+  const [nextStatus, setNextStatus] = useState<VisitStatus>('PAYMENT_PENDING');
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <div>
@@ -108,20 +110,28 @@ export const PostDoctorModal: React.FC<PostDoctorModalProps> = ({ visit, onClose
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
-          <button 
-            onClick={onClose}
-            className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            ยกเลิก
-          </button>
-          <button 
-            onClick={onConfirm}
-            className="px-10 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-colors flex items-center gap-2"
-          >
-            <CheckCircle2 size={18} />
-            ยืนยันความถูกต้อง
-          </button>
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex-1 w-full">
+            <DestinationSelector 
+              selectedDestination={nextStatus}
+              onChange={setNextStatus}
+            />
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <button 
+              onClick={onClose}
+              className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              ยกเลิก
+            </button>
+            <button 
+              onClick={() => onConfirm(nextStatus)}
+              className="px-10 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-colors flex items-center gap-2"
+            >
+              <CheckCircle2 size={18} />
+              ยืนยันความถูกต้อง
+            </button>
+          </div>
         </div>
       </div>
     </div>

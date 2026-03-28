@@ -6,8 +6,19 @@ import { Visit } from '../types';
 import { VaccineInjectionModal } from '../components/common/VaccineInjectionModal';
 
 export default function Injection() {
-  const { updateVisitStatus, setModalConfig } = useAppContext();
+  const { updateVisitStatus, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+
+  // Handle active visit from navigation
+  React.useEffect(() => {
+    if (activeVisitId) {
+      const visit = visits.find(v => v.id === activeVisitId);
+      if (visit && (visit.status === 'INJECTION_PENDING' || visit.status === 'INJECTION_IN_PROGRESS')) {
+        setSelectedVisit(visit);
+      }
+      setActiveVisitId(null); // Clear it after use
+    }
+  }, [activeVisitId, visits, setActiveVisitId]);
 
   const handleCallQueue = async (visit: Visit) => {
     await updateVisitStatus(visit.id, 'INJECTION_IN_PROGRESS');

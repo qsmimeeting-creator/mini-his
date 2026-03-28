@@ -7,8 +7,19 @@ import { Visit } from '../types';
 import { DispenseModal } from '../components/common/DispenseModal';
 
 export default function Dispense() {
-  const { vaccines, updateVisitStatus, updateVaccineStock, setModalConfig } = useAppContext();
+  const { vaccines, updateVisitStatus, updateVaccineStock, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+
+  // Handle active visit from navigation
+  React.useEffect(() => {
+    if (activeVisitId) {
+      const visit = visits.find(v => v.id === activeVisitId);
+      if (visit && (visit.status === 'DISPENSE_PENDING' || visit.status === 'DISPENSE_IN_PROGRESS')) {
+        setSelectedVisit(visit);
+      }
+      setActiveVisitId(null); // Clear it after use
+    }
+  }, [activeVisitId, visits, setActiveVisitId]);
 
   const handleCallQueue = async (visit: Visit) => {
     await updateVisitStatus(visit.id, 'DISPENSE_IN_PROGRESS');

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { X, CreditCard, Receipt, CheckCircle2, Wallet } from 'lucide-react';
-import { Visit } from '../../types';
+import { X, CreditCard, Receipt, CheckCircle2, Wallet, Send } from 'lucide-react';
+import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
+import { DestinationSelector } from './DestinationSelector';
 
 interface CashierModalProps {
   visit: Visit;
   onClose: () => void;
-  onConfirm: (paymentData: any) => void;
+  onConfirm: (paymentData: any, nextStatus: VisitStatus) => void;
 }
 
 export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onConfirm }) => {
@@ -18,6 +19,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onCo
 
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [receivedAmount, setReceivedAmount] = useState<string>('');
+  const [nextStatus, setNextStatus] = useState<VisitStatus>('DISPENSE_PENDING');
 
   const change = parseFloat(receivedAmount) - totalAmount;
 
@@ -29,11 +31,11 @@ export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onCo
       receivedAmount: parseFloat(receivedAmount),
       change: change > 0 ? change : 0,
       paidAt: new Date().toISOString()
-    });
+    }, nextStatus);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <div>
@@ -137,6 +139,13 @@ export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onCo
                       ฿{(change > 0 ? change : 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </span>
                   </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-100">
+                  <DestinationSelector 
+                    selectedDestination={nextStatus}
+                    onChange={setNextStatus}
+                  />
                 </div>
 
                 <button

@@ -7,8 +7,19 @@ import { CheckCircle, CheckCircle2, ClipboardList } from 'lucide-react';
 import { PostDoctorModal } from '../components/common/PostDoctorModal';
 
 export default function PostDoctor() {
-  const { updateVisitStatus, setModalConfig } = useAppContext();
+  const { updateVisitStatus, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+
+  // Handle active visit from navigation
+  React.useEffect(() => {
+    if (activeVisitId) {
+      const visit = visits.find(v => v.id === activeVisitId);
+      if (visit && (visit.status === 'POST_DOCTOR_PENDING' || visit.status === 'POST_DOCTOR_IN_PROGRESS')) {
+        setSelectedVisit(visit);
+      }
+      setActiveVisitId(null); // Clear it after use
+    }
+  }, [activeVisitId, visits, setActiveVisitId]);
 
   const handleCallQueue = async (visit: Visit) => {
     await updateVisitStatus(visit.id, 'POST_DOCTOR_IN_PROGRESS');

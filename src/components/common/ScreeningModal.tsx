@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { X, Activity, ClipboardCheck, Scale } from 'lucide-react';
-import { Visit } from '../../types';
+import { X, Activity, ClipboardCheck, Scale, Send } from 'lucide-react';
+import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
+import { DestinationSelector } from './DestinationSelector';
 
 interface ScreeningModalProps {
   visit: Visit;
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: any, nextStatus: VisitStatus) => void;
 }
 
 export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, onSave }) => {
   const { patients } = useAppContext();
   const patient = patients.find(p => p.id === visit.patientId);
+
+  const [screeningNote, setScreeningNote] = useState(visit.data?.screeningNote || '');
+  const [nextStatus, setNextStatus] = useState<VisitStatus>('DOCTOR_PENDING');
 
   const [formData, setFormData] = useState({
     temp: visit.data?.temp || '',
@@ -27,6 +31,7 @@ export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, 
     q1: visit.data?.q1 || 'no',
     q2: visit.data?.q2 || 'no',
     q3: visit.data?.q3 || 'no',
+    screeningNote: visit.data?.screeningNote || '',
   });
 
   // Calculate BMI
@@ -71,13 +76,14 @@ export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, 
     e.preventDefault();
     onSave({
       ...formData,
+      screeningNote,
       bp: formData.bpSys && formData.bpDia ? `${formData.bpSys}/${formData.bpDia}` : '',
       screenedAt: new Date().toISOString()
-    });
+    }, nextStatus);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <div>
@@ -279,6 +285,25 @@ export const ScreeningModal: React.FC<ScreeningModalProps> = ({ visit, onClose, 
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Note Section */}
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-gray-700">บันทึกเพิ่มเติม (ถ้ามี)</label>
+              <textarea 
+                rows={3}
+                value={screeningNote}
+                onChange={e => setScreeningNote(e.target.value)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
+                placeholder="ระบุอาการเบื้องต้น หรือบันทึกอื่นๆ..."
+              />
+            </div>
+
+            <div className="pt-4 border-t border-gray-100">
+              <DestinationSelector 
+                selectedDestination={nextStatus}
+                onChange={setNextStatus}
+              />
             </div>
 
             <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">

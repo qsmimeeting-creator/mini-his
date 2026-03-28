@@ -32,7 +32,10 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
   const [showSuggestions, setShowSuggestions] = useState<string | null>(null);
   const [title, setTitle] = useState(editForm.title || 'นาย');
   const [otherTitle, setOtherTitle] = useState('');
+  const [titleEn, setTitleEn] = useState(editForm.titleEn || 'Mr.');
+  const [otherTitleEn, setOtherTitleEn] = useState('');
   const [age, setAge] = useState('');
+  const [era, setEra] = useState<'BE' | 'AD'>('BE');
   const [birthDate, setBirthDate] = useState({
     day: '',
     month: '',
@@ -43,10 +46,11 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
   useEffect(() => {
     if (editForm.birthDate) {
       const [year, month, day] = editForm.birthDate.split('-');
+      const yearNum = parseInt(year);
       setBirthDate({
         day: parseInt(day).toString(),
         month: parseInt(month).toString(),
-        year: (parseInt(year) + 543).toString()
+        year: (yearNum + (era === 'BE' ? 543 : 0)).toString()
       });
     }
     
@@ -57,13 +61,23 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
     } else {
       setTitle(editForm.title || 'นาย');
     }
+
+    const standardTitlesEn = ['Mr.', 'Mrs.', 'Ms.', 'Miss', 'Master'];
+    if (editForm.titleEn && !standardTitlesEn.includes(editForm.titleEn)) {
+      setTitleEn('Other');
+      setOtherTitleEn(editForm.titleEn);
+    } else {
+      setTitleEn(editForm.titleEn || 'Mr.');
+    }
     
     setIsForeigner(!!editForm.passportNo && !editForm.citizenId);
   }, [editingPatient]);
 
   useEffect(() => {
     if (birthDate.day && birthDate.month && birthDate.year) {
-      const birth = new Date(parseInt(birthDate.year) - 543, parseInt(birthDate.month) - 1, parseInt(birthDate.day));
+      const yearNum = parseInt(birthDate.year);
+      const gregorianYear = era === 'BE' ? yearNum - 543 : yearNum;
+      const birth = new Date(gregorianYear, parseInt(birthDate.month) - 1, parseInt(birthDate.day));
       const today = new Date();
       let calculatedAge = today.getFullYear() - birth.getFullYear();
       const m = today.getMonth() - birth.getMonth();
@@ -74,7 +88,7 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
     } else {
       setAge('');
     }
-  }, [birthDate]);
+  }, [birthDate, era]);
 
   // Update editForm.title when title or otherTitle change
   useEffect(() => {
@@ -84,10 +98,19 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
     }
   }, [title, otherTitle]);
 
+  // Update editForm.titleEn when titleEn or otherTitleEn change
+  useEffect(() => {
+    const finalTitleEn = titleEn === 'Other' ? otherTitleEn : titleEn;
+    if (finalTitleEn !== editForm.titleEn) {
+      setEditForm(prev => ({ ...prev, titleEn: finalTitleEn }));
+    }
+  }, [titleEn, otherTitleEn]);
+
   // Update editForm.birthDate when parts change
   useEffect(() => {
     if (birthDate.day && birthDate.month && birthDate.year && birthDate.year.length === 4) {
-      const gregorianYear = parseInt(birthDate.year) - 543;
+      const yearNum = parseInt(birthDate.year);
+      const gregorianYear = era === 'BE' ? yearNum - 543 : yearNum;
       const month = birthDate.month.padStart(2, '0');
       const day = birthDate.day.padStart(2, '0');
       const isoDate = `${gregorianYear}-${month}-${day}`;
@@ -95,7 +118,7 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
         setEditForm(prev => ({ ...prev, birthDate: isoDate }));
       }
     }
-  }, [birthDate]);
+  }, [birthDate, era]);
 
   useEffect(() => {
     if (editForm.phone) {
@@ -145,7 +168,7 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
           <div className="flex items-center gap-3">
@@ -262,6 +285,45 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">คำนำหน้า (EN)</label>
+                <select 
+                  value={titleEn}
+                  onChange={e => setTitleEn(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="Mr.">Mr.</option>
+                  <option value="Mrs.">Mrs.</option>
+                  <option value="Ms.">Ms.</option>
+                  <option value="Miss">Miss</option>
+                  <option value="Master">Master</option>
+                  <option value="Other">Other</option>
+                </select>
+                {titleEn === 'Other' && (
+                  <input 
+                    value={otherTitleEn}
+                    onChange={e => setOtherTitleEn(e.target.value)}
+                    placeholder="Specify Title (EN)"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mt-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อ (EN)</label>
+                <input 
+                  value={editForm.firstNameEn}
+                  onChange={e => setEditForm({...editForm, firstNameEn: e.target.value})}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">นามสกุล (EN)</label>
+                <input 
+                  value={editForm.lastNameEn}
+                  onChange={e => setEditForm({...editForm, lastNameEn: e.target.value})}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">เพศ</label>
                 <select 
                   value={editForm.gender}
@@ -273,30 +335,80 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">วัน/เดือน/ปีเกิด (พ.ศ.)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">วัน/เดือน/ปีเกิด ({era === 'BE' ? 'พ.ศ.' : 'ค.ศ.'})</label>
+                  <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setEra('BE')}
+                      className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all ${
+                        era === 'BE' 
+                          ? 'bg-white text-blue-600 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      พ.ศ.
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEra('AD')}
+                      className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all ${
+                        era === 'AD' 
+                          ? 'bg-white text-blue-600 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      ค.ศ.
+                    </button>
+                  </div>
+                </div>
                 <div className="flex gap-2">
-                  <select 
-                    value={birthDate.day} 
-                    onChange={(e) => setBirthDate({...birthDate, day: e.target.value})} 
-                    className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="">วัน</option>
-                    {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
-                  </select>
-                  <select 
-                    value={birthDate.month} 
-                    onChange={(e) => setBirthDate({...birthDate, month: e.target.value})} 
-                    className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="">เดือน</option>
-                    {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                  </select>
+                  <div className="relative flex-1">
+                    <input
+                      list="edit-days-list"
+                      value={birthDate.day}
+                      onChange={(e) => setBirthDate({...birthDate, day: e.target.value})}
+                      placeholder="วัน"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                    <datalist id="edit-days-list">
+                      {[...Array(31)].map((_, i) => <option key={i+1} value={i+1} />)}
+                    </datalist>
+                  </div>
+                  <div className="relative flex-[2]">
+                    <input
+                      list="edit-months-list"
+                      value={birthDate.month}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const monthMap: {[key: string]: string} = {
+                          'มกราคม': '1', 'กุมภาพันธ์': '2', 'มีนาคม': '3', 'เมษายน': '4',
+                          'พฤษภาคม': '5', 'มิถุนายน': '6', 'กรกฎาคม': '7', 'สิงหาคม': '8',
+                          'กันยายน': '9', 'ตุลาคม': '10', 'พฤศจิกายน': '11', 'ธันวาคม': '12'
+                        };
+                        if (monthMap[val]) {
+                          setBirthDate({...birthDate, month: monthMap[val]});
+                        } else if (/^\d+$/.test(val) && parseInt(val) >= 1 && parseInt(val) <= 12) {
+                          setBirthDate({...birthDate, month: val});
+                        } else {
+                          setBirthDate({...birthDate, month: val});
+                        }
+                      }}
+                      placeholder="เดือน"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                    <datalist id="edit-months-list">
+                      {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map((m, i) => (
+                        <option key={i+1} value={m}>{i+1}</option>
+                      ))}
+                    </datalist>
+                  </div>
                   <input 
                     maxLength={4} 
                     value={birthDate.year} 
                     onChange={(e) => setBirthDate({...birthDate, year: e.target.value.replace(/\D/g, '')})} 
                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
-                    placeholder="ปี พ.ศ." 
+                    placeholder={era === 'BE' ? "ปี พ.ศ." : "ปี ค.ศ."} 
                   />
                 </div>
               </div>

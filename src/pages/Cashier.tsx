@@ -7,8 +7,19 @@ import { CashierModal } from '../components/common/CashierModal';
 import { CheckCircle2, Receipt } from 'lucide-react';
 
 export default function Cashier() {
-  const { updateVisitStatus, setModalConfig } = useAppContext();
+  const { updateVisitStatus, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+
+  // Handle active visit from navigation
+  React.useEffect(() => {
+    if (activeVisitId) {
+      const visit = visits.find(v => v.id === activeVisitId);
+      if (visit && (visit.status === 'PAYMENT_PENDING' || visit.status === 'PAYMENT_IN_PROGRESS')) {
+        setSelectedVisit(visit);
+      }
+      setActiveVisitId(null); // Clear it after use
+    }
+  }, [activeVisitId, visits, setActiveVisitId]);
 
   const handleCallQueue = async (visit: Visit) => {
     await updateVisitStatus(visit.id, 'PAYMENT_IN_PROGRESS');

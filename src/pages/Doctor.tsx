@@ -7,10 +7,22 @@ import { Activity, Thermometer, Heart, Weight, Scale, CheckCircle2 } from 'lucid
 import { DoctorOrderModal } from '../components/common/DoctorOrderModal';
 
 export default function Doctor() {
-  const { vaccines, updateVisitStatus, setModalConfig } = useAppContext();
+  const { vaccines, updateVisitStatus, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+
+  // Handle active visit from navigation
+  React.useEffect(() => {
+    if (activeVisitId) {
+      const visit = visits.find(v => v.id === activeVisitId);
+      if (visit && (visit.status === 'DOCTOR_PENDING' || visit.status === 'DOCTOR_IN_PROGRESS')) {
+        setSelectedVisit(visit);
+        setIsModalOpen(true);
+      }
+      setActiveVisitId(null); // Clear it after use
+    }
+  }, [activeVisitId, visits, setActiveVisitId]);
 
   const handleCallQueue = async (visit: Visit) => {
     await updateVisitStatus(visit.id, 'DOCTOR_IN_PROGRESS');
@@ -22,7 +34,7 @@ export default function Doctor() {
     setIsModalOpen(true);
   };
 
-  const handleConfirmOrder = async (selectedVaccineIds: string[]) => {
+  const handleConfirmOrder = async (selectedVaccineIds: string[], additionalData: { doctorNote: string, diagnosis: string }) => {
     if (!selectedVisit || selectedVaccineIds.length === 0) return;
 
     const orders = selectedVaccineIds.map(id => vaccines.find(v => v.id === id)).filter(Boolean);
@@ -30,6 +42,7 @@ export default function Doctor() {
     try {
       await updateVisitStatus(selectedVisit.id, 'POST_DOCTOR_PENDING', { 
         orders, 
+        ...additionalData,
         orderedAt: new Date().toISOString() 
       });
       
