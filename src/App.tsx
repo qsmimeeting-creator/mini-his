@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Activity, Stethoscope, CreditCard, Pill, Syringe, 
-  Database, Plus, Search, Bell, Menu, X, LogOut, LogIn, BarChart3, RotateCcw
+  Database, Plus, Search, Bell, Menu, X, LogOut, LogIn, BarChart3, RotateCcw, CheckCircle
 } from 'lucide-react';
 
 import { useAppContext } from './context/AppContext';
@@ -15,6 +15,7 @@ import Dashboard from './pages/Dashboard';
 import Registration from './pages/Registration';
 import Screening from './pages/Screening';
 import Doctor from './pages/Doctor';
+import PostDoctor from './pages/PostDoctor';
 import Cashier from './pages/Cashier';
 import Dispense from './pages/Dispense';
 import Injection from './pages/Injection';
@@ -102,6 +103,7 @@ export default function App() {
             <SidebarItem path="/registration" icon={Plus} label="จุดลงทะเบียน" isActive={location.pathname === '/registration'} onClick={() => { navigate('/registration'); setIsSidebarOpen(false); }} />
             <SidebarItem path="/screening" icon={Activity} label="คัดกรอง / ซักประวัติ" isActive={location.pathname === '/screening'} onClick={() => { navigate('/screening'); setIsSidebarOpen(false); }} />
             <SidebarItem path="/doctor" icon={Stethoscope} label="ห้องตรวจแพทย์" isActive={location.pathname === '/doctor'} onClick={() => { navigate('/doctor'); setIsSidebarOpen(false); }} />
+            <SidebarItem path="/post-doctor" icon={CheckCircle} label="พยาบาลหลังพบแพทย์" isActive={location.pathname === '/post-doctor'} onClick={() => { navigate('/post-doctor'); setIsSidebarOpen(false); }} />
             <SidebarItem path="/cashier" icon={CreditCard} label="การเงิน" isActive={location.pathname === '/cashier'} onClick={() => { navigate('/cashier'); setIsSidebarOpen(false); }} />
             <SidebarItem path="/dispense" icon={Pill} label="ห้องจ่ายยา / คลัง" isActive={location.pathname === '/dispense'} onClick={() => { navigate('/dispense'); setIsSidebarOpen(false); }} />
             <SidebarItem path="/injection" icon={Syringe} label="ห้องฉีดยา" isActive={location.pathname === '/injection'} onClick={() => { navigate('/injection'); setIsSidebarOpen(false); }} />
@@ -136,6 +138,7 @@ export default function App() {
             <Route path="/registration" element={<Registration />} />
             <Route path="/screening" element={<Screening />} />
             <Route path="/doctor" element={<Doctor />} />
+            <Route path="/post-doctor" element={<PostDoctor />} />
             <Route path="/cashier" element={<Cashier />} />
             <Route path="/dispense" element={<Dispense />} />
             <Route path="/injection" element={<Injection />} />
