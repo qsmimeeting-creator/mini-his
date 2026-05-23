@@ -6,6 +6,7 @@ import { searchAddressBySubDistrict } from "thai-address-universal";
 const PORT = Number(process.env.THAI_ID_CARD_READER_PORT || 32123);
 const HOST = "127.0.0.1";
 const WORKER_PATH = fileURLToPath(new URL("./thaiIdCardReaderWorker.cjs", import.meta.url));
+const HEALTH_URL = `http://${HOST}:${PORT}/api/health`;
 
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://mini-his.vercel.app",
@@ -243,7 +244,37 @@ app.post("/api/thai-id-card/read", async (_req, res) => {
   res.json({ ok: true, data });
 });
 
-app.listen(PORT, HOST, () => {
+const handleListenError = async (error) => {
+  if (error?.code !== "EADDRINUSE") {
+    console.error("ไม่สามารถเริ่มโปรแกรมอ่านบัตรได้:", error?.message || error);
+    process.exit(1);
+  }
+
+  try {
+    const response = await fetch(HEALTH_URL);
+    const payload = await response.json();
+    if (payload?.ok === true && payload?.service === "thai-id-card-reader") {
+      console.log("");
+      console.log(`โปรแกรมอ่านบัตรเปิดอยู่แล้วที่ ${HEALTH_URL}`);
+      console.log("ใช้งานได้เลย ไม่ต้องเปิดซ้ำ");
+      process.exit(0);
+    }
+  } catch {
+    // The port is occupied, but it is not responding as this reader service.
+  }
+
+  console.error("");
+  console.error(`ไม่สามารถเปิดโปรแกรมอ่านบัตรได้ เพราะ port ${PORT} ถูกใช้งานอยู่แล้ว`);
+  console.error("ให้รัน stop.bat เพื่อปิด process ที่ค้างอยู่ แล้วเปิด start.bat ใหม่");
+  console.error("หรือเปลี่ยน THAI_ID_CARD_READER_PORT หากจำเป็น");
+  process.exit(1);
+};
+
+const server = app.listen(PORT, HOST, () => {
   console.log(`Thai ID card reader service running on http://${HOST}:${PORT}`);
   console.log(`Allowed origins: ${allAllowedOrigins.join(", ") || "(none)"}`);
+});
+
+server.on("error", (error) => {
+  void handleListenError(error);
 });

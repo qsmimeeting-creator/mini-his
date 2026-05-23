@@ -260,7 +260,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     } catch (error) {
       setCidChecked(false);
       setCardReadStatus('error');
-      setCardReadMessage(error instanceof Error ? error.message : 'อ่านข้อมูลจากบัตรประชาชนไม่สำเร็จ');
+      const message = error instanceof Error ? error.message : 'อ่านข้อมูลจากบัตรประชาชนไม่สำเร็จ';
+      setCardReadMessage(
+        message === 'Failed to fetch'
+          ? 'ยังไม่ได้เปิดโปรแกรมอ่านบัตรบนเครื่องนี้ กรุณาเปิด reader-service/start.bat หากเปิดแล้วให้ลอง check.bat หรือ stop.bat แล้วเปิดใหม่'
+          : message
+      );
     }
   };
 
