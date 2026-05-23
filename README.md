@@ -32,26 +32,28 @@ The existing `vercel.json` rewrites all routes to `index.html`, so direct links 
 
 ## Thai ID Card Reader on Each Computer
 
-The Vercel web app cannot access a smart card reader directly. On each Windows computer that needs to read Thai ID cards:
+The Vercel web app cannot access a smart card reader directly. On each Windows computer that needs to read Thai ID cards, copy only the `reader-service/` folder and install that small local service.
 
 1. Install the smart card reader driver and ensure the Windows Smart Card service is running.
 2. Install Visual Studio C++ Build Tools if native dependencies need rebuilding.
-3. Install project dependencies:
-   `npm install`
-4. Rebuild the native reader dependency if needed:
-   `npm rebuild pcsclite`
-5. Start the local reader service:
-   `npm run reader`
+3. Copy the `reader-service/` folder to that computer.
+4. Open `reader-service/` and run `install.bat`.
+5. Run `start.bat`.
 
 The reader service runs on `http://127.0.0.1:32123` and the web app calls:
 
 `http://127.0.0.1:32123/api/thai-id-card/read`
 
-When using a deployed Vercel/custom domain, allow that origin before starting the reader service:
+The default `start.bat` already allows:
+
+`https://mini-his.vercel.app`
+
+When using another Vercel/custom domain, edit `reader-service/start.bat` or allow that origin before starting the reader service:
 
 ```powershell
-$env:THAI_ID_CARD_ALLOWED_ORIGINS="https://your-project.vercel.app,https://your-domain.example"
-npm run reader
+$env:THAI_ID_CARD_ALLOWED_ORIGINS="https://mini-his.vercel.app,https://your-domain.example"
+cd reader-service
+npm.cmd run reader
 ```
 
 For a different local reader URL, build the web app with:
