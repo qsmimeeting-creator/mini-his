@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, Syringe, MapPin, Navigation, Info, CheckCircle2 } from 'lucide-react';
+import { X, Syringe, MapPin, Navigation, Info, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
+import { findDispensedItemForOrder, formatDoseNumber, getOrderKey, getPendingInjectionOrders, omitUndefinedFields } from '../../utils/orderWorkflow';
 
 interface VaccineInjectionModalProps {
   visit: Visit;
@@ -11,33 +12,39 @@ interface VaccineInjectionModalProps {
 }
 
 interface InjectionRecord {
+  orderId?: string;
   vaccineId: string;
   vaccineName: string;
+  doseNumber?: number;
+  doseLabel?: string;
   lot: string;
   route: string;
   site: string;
   note: string;
 }
 
+const buildInitialRecords = (visit: Visit): InjectionRecord[] => {
+  const orders = getPendingInjectionOrders(visit);
+  const lotsArray = (visit.data?.dispensedLots || '').split(',').map((lot: string) => lot.trim()).filter(Boolean);
+  const recordsFromOrders = orders.map((order: any, index: number) => ({
+    orderId: getOrderKey(order, index),
+    vaccineId: order.id,
+    vaccineName: order.name,
+    ...(order.doseNumber !== undefined ? { doseNumber: order.doseNumber } : {}),
+    ...(order.doseLabel ? { doseLabel: order.doseLabel } : {}),
+    lot: findDispensedItemForOrder(visit, order, index)?.lot || lotsArray[index] || lotsArray[0] || '',
+    route: 'IM',
+    site: 'ต้นแขนซ้าย',
+    note: '',
+  }));
+
+  return recordsFromOrders;
+};
+
 export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ visit, onClose, onSave }) => {
   const { patients } = useAppContext();
   const patient = patients.find(p => p.id === visit.patientId);
-  const orders = visit.data?.orders || [];
-  const dispensedLots = visit.data?.dispensedLots || '';
-  const lotsArray = dispensedLots.split(',').map((l: string) => l.trim());
-
-  const [injectionRecords, setInjectionRecords] = useState<InjectionRecord[]>(
-    visit.data?.injectionRecords || 
-    orders.map((o: any, index: number) => ({
-      vaccineId: o.id,
-      vaccineName: o.name,
-      lot: lotsArray[index] || lotsArray[0] || '',
-      route: 'IM',
-      site: 'ต้นแขนซ้าย',
-      note: '',
-    }))
-  );
-
+  const [injectionRecords, setInjectionRecords] = useState<InjectionRecord[]>(() => buildInitialRecords(visit));
   const nextStatus: VisitStatus = 'COMPLETED';
 
   const handleUpdateRecord = (index: number, field: keyof InjectionRecord, value: string) => {
@@ -48,8 +55,9 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (injectionRecords.length === 0) return;
     onSave({
-      injectionRecords,
+      injectionRecords: injectionRecords.map(record => omitUndefinedFields(record)),
       injectedAt: new Date().toISOString()
     }, nextStatus);
   };
@@ -80,13 +88,22 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
               <Info size={20} className="text-blue-500 mt-0.5 shrink-0" />
               <div className="text-xs text-blue-700 leading-relaxed">
                 <p className="font-bold mb-1">คำแนะนำการบันทึก:</p>
-                <p>กรุณาระบุตำแหน่งและวิธีการฉีดให้ถูกต้องตามมาตรฐานการพยาบาล เพื่อใช้เป็นข้อมูลอ้างอิงและติดตามผลข้างเคียงที่อาจเกิดขึ้น</p>
+                <p>กรุณาระบุตำแหน่งและวิธีการฉีดให้ถูกต้องตามมาตรฐานการพยาบาล เพื่อใช้เป็นข้อมูลอ้างอิงและติดตามผลข้างเคียง</p>
               </div>
             </div>
 
-            <div className="space-y-6">
+            {injectionRecords.length === 0 ? (
+              <div className="p-8 border border-dashed border-gray-200 rounded-2xl bg-gray-50 text-center space-y-3">
+                <AlertCircle size={32} className="mx-auto text-gray-400" />
+                <div>
+                  <p className="font-bold text-gray-700">ไม่มีรายการวัคซีนใหม่ที่ต้องบันทึกฉีด</p>
+                  <p className="text-sm text-gray-500 mt-1">รายการที่เคยบันทึกฉีดแล้วจะไม่ถูกนำมาบันทึกซ้ำ</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
               {injectionRecords.map((record, index) => (
-                <div key={index} className="p-6 border border-gray-200 rounded-2xl space-y-6 bg-white shadow-sm hover:border-emerald-200 transition-all">
+                <div key={record.orderId || `${record.vaccineId}-${record.doseLabel || record.doseNumber || index}`} className="p-6 border border-gray-200 rounded-2xl space-y-6 bg-white shadow-sm hover:border-emerald-200 transition-all">
                   <div className="flex justify-between items-start border-b border-gray-50 pb-4">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
@@ -95,16 +112,20 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
                         </span>
                         <h4 className="font-bold text-2xl text-gray-900">{record.vaccineName}</h4>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-mono text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 font-bold">
-                          LOT: {record.lot}
+                          LOT: {record.lot || '-'}
                         </span>
+                        {(record.doseNumber || record.doseLabel) && (
+                          <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                            {formatDoseNumber(record.doseNumber, record.doseLabel)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Route Selection */}
                     <div className="space-y-3">
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-700">
                         <Navigation size={16} className="text-blue-500" />
@@ -128,13 +149,12 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
                       </div>
                     </div>
 
-                    {/* Site Selection */}
                     <div className="space-y-3">
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-700">
                         <MapPin size={16} className="text-blue-500" />
                         ตำแหน่งที่ฉีด (Site)
                       </label>
-                      <select 
+                      <select
                         value={record.site}
                         onChange={e => handleUpdateRecord(index, 'site', e.target.value)}
                         className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none bg-white shadow-sm transition-all"
@@ -152,7 +172,7 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
 
                   <div className="space-y-2">
                     <label className="block text-sm font-bold text-gray-700">หมายเหตุเพิ่มเติม</label>
-                    <textarea 
+                    <textarea
                       rows={2}
                       value={record.note}
                       onChange={e => handleUpdateRecord(index, 'note', e.target.value)}
@@ -162,20 +182,22 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            )}
 
             <div className="flex flex-col md:flex-row justify-end items-center gap-4 pt-6 border-t border-gray-100">
               <div className="flex gap-3 shrink-0">
-                <button 
+                <button
                   type="button"
                   onClick={onClose}
                   className="px-8 py-3 text-sm font-bold text-gray-700 bg-white border-2 border-gray-100 rounded-xl hover:bg-gray-50 hover:border-gray-200 transition-all"
                 >
                   ยกเลิก
                 </button>
-                <button 
+                <button
                   type="submit"
-                  className="px-12 py-3 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center gap-2"
+                  disabled={injectionRecords.length === 0}
+                  className="px-12 py-3 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle2 size={20} />
                   ยืนยันการฉีดวัคซีน

@@ -21,8 +21,12 @@ export default function Screening() {
   }, [activeVisitId, visits, setActiveVisitId]);
 
   const handleCallQueue = async (visit: Visit) => {
-    await updateVisitStatus(visit.id, 'SCREENING_IN_PROGRESS');
-    setSelectedVisit(visit);
+    try {
+      await updateVisitStatus(visit.id, 'SCREENING_IN_PROGRESS');
+      setSelectedVisit(visit);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const handleScreening = (visit: Visit) => {
@@ -31,8 +35,12 @@ export default function Screening() {
 
   const onSaveScreening = async (data: any) => {
     if (selectedVisit) {
-      await updateVisitStatus(selectedVisit.id, 'DOCTOR_PENDING', data);
-      setSelectedVisit(null);
+      try {
+        await updateVisitStatus(selectedVisit.id, 'DOCTOR_PENDING', data);
+        setSelectedVisit(null);
+      } catch (error) {
+        console.error(error);
+      }
     }
   };
 

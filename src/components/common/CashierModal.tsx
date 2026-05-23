@@ -3,6 +3,7 @@ import { X, CreditCard, Receipt, CheckCircle2, Wallet } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
+import { formatDoseNumber, getUnpaidOrders } from '../../utils/orderWorkflow';
 
 interface CashierModalProps {
   visit: Visit;
@@ -13,17 +14,19 @@ interface CashierModalProps {
 export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onConfirm }) => {
   const { patients } = useAppContext();
   const patient = patients.find(p => p.id === visit.patientId);
-  const orders = visit.data?.orders || [];
-  const totalAmount = orders.reduce((sum: number, o: any) => sum + o.price, 0);
+  const orders = getUnpaidOrders(visit);
+  const totalAmount = orders.reduce((sum: number, o: any) => sum + (o.price || 0), 0);
+  const hasPendingPayment = orders.length > 0 && totalAmount > 0;
 
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [receivedAmount, setReceivedAmount] = useState<string>('');
   const nextStatus: VisitStatus = 'DISPENSE_PENDING';
 
-  const change = parseFloat(receivedAmount) - totalAmount;
+  const change = (parseFloat(receivedAmount) || 0) - totalAmount;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasPendingPayment) return;
     onConfirm({
       paymentMethod,
       totalAmount,
@@ -65,10 +68,22 @@ export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onCo
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
+                    {orders.length === 0 && (
+                      <tr>
+                        <td className="px-4 py-6 text-center text-gray-400" colSpan={2}>
+                          ไม่มีรายการค้างชำระ
+                        </td>
+                      </tr>
+                    )}
                     {orders.map((order: any, idx: number) => (
                       <tr key={idx}>
-                        <td className="px-4 py-3 text-gray-700">{order.name}</td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-900">฿{order.price.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-gray-700">
+                          <div className="font-medium">{order.name}</div>
+                          {(order.doseNumber || order.doseLabel) && (
+                            <div className="text-[10px] text-gray-500">{formatDoseNumber(order.doseNumber, order.doseLabel)}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-gray-900">฿{(order.price || 0).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -125,6 +140,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onCo
                       type="number"
                       required
                       autoFocus
+                      disabled={!hasPendingPayment}
                       value={receivedAmount}
                       onChange={e => setReceivedAmount(e.target.value)}
                       className="w-full text-2xl font-bold px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-right"
@@ -142,7 +158,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onCo
 
                 <button
                   type="submit"
-                  disabled={!receivedAmount || parseFloat(receivedAmount) < totalAmount}
+                  disabled={!hasPendingPayment || !receivedAmount || parseFloat(receivedAmount) < totalAmount}
                   className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
                 >
                   <CheckCircle2 size={24} />

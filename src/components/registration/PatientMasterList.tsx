@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit, Trash2, Eye, Plus } from 'lucide-react';
+import { Edit, Trash2, Eye, Plus, Printer, Tags } from 'lucide-react';
 import { Patient } from '../../types';
 
 interface PatientMasterListProps {
@@ -12,6 +12,8 @@ interface PatientMasterListProps {
   onEdit: (patient: Patient) => void;
   onDelete: (patient: Patient) => void;
   onOpenVisit: (patient: Patient) => void;
+  onPrintOpdCover: (patient: Patient) => void;
+  onPrintSticker: (patient: Patient) => void;
 }
 
 export const PatientMasterList: React.FC<PatientMasterListProps> = ({
@@ -23,7 +25,9 @@ export const PatientMasterList: React.FC<PatientMasterListProps> = ({
   onView,
   onEdit,
   onDelete,
-  onOpenVisit
+  onOpenVisit,
+  onPrintOpdCover,
+  onPrintSticker
 }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -82,6 +86,20 @@ export const PatientMasterList: React.FC<PatientMasterListProps> = ({
                         title="ลบข้อมูล"
                       >
                         <Trash2 size={18} />
+                      </button>
+                      <button 
+                        onClick={() => onPrintOpdCover(p)} 
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
+                        title="พิมพ์หน้าปก OPD"
+                      >
+                        <Printer size={18} />
+                      </button>
+                      <button 
+                        onClick={() => onPrintSticker(p)} 
+                        className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
+                        title="พิมพ์สติ๊กเกอร์"
+                      >
+                        <Tags size={18} />
                       </button>
                       <button 
                         onClick={() => onOpenVisit(p)} 

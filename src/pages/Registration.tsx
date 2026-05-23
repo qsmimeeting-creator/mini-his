@@ -1,18 +1,106 @@
 import React, { useState } from 'react';
-import { UserPlus, Users } from 'lucide-react';
+import { SlidersHorizontal, UserPlus, Users } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { SectionTitle } from '../components/common/SectionTitle';
 import { Patient, VisitStatus } from '../types';
 import { PatientDetailsModal } from '../components/common/PatientDetailsModal';
 import { RegistrationForm } from '../components/registration/RegistrationForm';
 import { PatientMasterList } from '../components/registration/PatientMasterList';
+import { OpdCoverSettings } from '../components/registration/OpdCoverSettings';
 import { EditPatientModal } from '../components/registration/EditPatientModal';
 import { OpenVisitModal } from '../components/common/OpenVisitModal';
+import { getOpdCoverLayoutSignature } from '../utils/opdCoverLayout';
+import type { OpdCoverLayout } from '../utils/opdCoverLayout';
+
+const MOCK_OPD_COVER_PATIENT: Patient = {
+  id: 'preview-patient',
+  hn: '6900001',
+  name: 'นาย วิชัย ศรีต่างคำ',
+  title: 'นาย',
+  firstName: 'วิชัย',
+  lastName: 'ศรีต่างคำ',
+  birthDate: '1987-03-02',
+  gender: 'male',
+  citizenId: '1430500137751',
+  phone: '081-234-5678',
+  addressLine1: '204/48 ถนนกัลปพฤกษ์',
+  subDistrict: 'บางหว้า',
+  district: 'ภาษีเจริญ',
+  province: 'กรุงเทพมหานคร',
+  postalCode: '10160',
+  drugAllergy: '',
+  underlyingDisease: '',
+  nationality: 'ไทย'
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const getPatientDisplayName = (patient: Patient) =>
+  (patient.name || `${patient.title || ''} ${patient.firstName || ''} ${patient.lastName || ''}`).replace(/\s+/g, ' ').trim() || '-';
+
+const parseIsoDateOnly = (value?: string) => {
+  if (!value) return null;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const [, year, month, day] = match;
+  const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
+  if (
+    parsedDate.getFullYear() !== Number(year) ||
+    parsedDate.getMonth() !== Number(month) - 1 ||
+    parsedDate.getDate() !== Number(day)
+  ) {
+    return null;
+  }
+
+  return parsedDate;
+};
+
+const calculateAgeInYears = (birthDate: Date, today = new Date()) => {
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+const validateBirthDate = (birthDate?: string, isRequired = true) => {
+  if (!birthDate) return isRequired ? 'กรุณาระบุวันเกิด' : '';
+
+  const selectedDate = parseIsoDateOnly(birthDate);
+  if (!selectedDate) return 'วันเกิดไม่ถูกต้อง';
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  selectedDate.setHours(0, 0, 0, 0);
+
+  if (selectedDate > today) return 'วันเกิดห้ามเป็นวันที่ในอนาคต';
+  if (calculateAgeInYears(selectedDate, today) > 120) return 'อายุต้องไม่เกิน 120 ปี';
+
+  return '';
+};
 
 export default function Registration() {
-  const { patients, registerPatient, updatePatient, deletePatient, openVisit, setModalConfig } = useAppContext();
+  const {
+    patients,
+    registerPatient,
+    updatePatient,
+    deletePatient,
+    openVisit,
+    opdCoverLayout,
+    updateOpdCoverLayout,
+    resetOpdCoverLayout,
+    setModalConfig
+  } = useAppContext();
   const [errors, setErrors] = useState<{ cid?: string; dob?: string; passport?: string }>({});
-  const [activeTab, setActiveTab] = useState<'register' | 'master'>('register');
+  const [activeTab, setActiveTab] = useState<'register' | 'master' | 'opd-settings'>('register');
   const [searchTerm, setSearchTerm] = useState('');
   const [formKey, setFormKey] = useState(0);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
@@ -77,8 +165,6 @@ export default function Registration() {
     const currentMedication = formData.get('currentMedication') as string;
     const emergencyContactName = formData.get('emergencyContactName') as string;
     const emergencyContactPhone = formData.get('emergencyContactPhone') as string;
-    const nextStatus = (formData.get('nextStatus') as VisitStatus) || 'SCREENING_PENDING';
-
     const name = `${title} ${firstName} ${lastName}`;
 
     const newErrors: { cid?: string; dob?: string; passport?: string } = {};
@@ -88,16 +174,9 @@ export default function Registration() {
       newErrors.cid = 'เลขประจำตัวประชาชนต้องเป็นตัวเลข 13 หลัก';
     }
 
-    // Validate DOB (not in future)
-    if (!birthDate) {
-      newErrors.dob = 'กรุณาระบุวันเกิด';
-    } else {
-      const selectedDate = new Date(birthDate);
-      const today = new Date();
-      if (selectedDate > today) {
-        newErrors.dob = 'วันเกิดห้ามเป็นวันที่ในอนาคต';
-      }
-    }
+    // Validate DOB (required, not in future, age not over 120)
+    const birthDateError = validateBirthDate(birthDate);
+    if (birthDateError) newErrors.dob = birthDateError;
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -142,30 +221,26 @@ export default function Registration() {
         emergencyContactName,
         emergencyContactPhone
       });
-      
-      const success = await openVisit(newPatient, nextStatus);
-      
-      if (success) {
-        // Increment formKey to reset the controlled component
-        setFormKey(prev => prev + 1);
-        
-        setModalConfig({
-          isOpen: true,
-          type: 'alert',
-          title: 'ลงทะเบียนสำเร็จ',
-          message: (
-            <div className="space-y-3 mt-2">
-              <p className="text-gray-700 text-base">ลงทะเบียนผู้ป่วยและเปิด Visit ใหม่เรียบร้อยแล้ว</p>
-              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-blue-600 font-medium">HN:</span>
-                  <span className="text-blue-800 font-bold text-lg">{newPatient.hn}</span>
-                </div>
+
+      // Increment formKey to reset the controlled component
+      setFormKey(prev => prev + 1);
+
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'ลงทะเบียนสำเร็จ',
+        message: (
+          <div className="space-y-3 mt-2">
+            <p className="text-gray-700 text-base">ลงทะเบียนผู้รับบริการเรียบร้อยแล้ว</p>
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-blue-600 font-medium">HN:</span>
+                <span className="text-blue-800 font-bold text-lg">{newPatient.hn}</span>
               </div>
             </div>
-          )
-        });
-      }
+          </div>
+        )
+      });
     } catch (error) {
       console.error('Registration error:', error);
       setModalConfig({
@@ -183,11 +258,271 @@ export default function Registration() {
     setOpeningVisitPatient(patient);
   };
 
-  const confirmOpenVisit = async (nextStatus: VisitStatus) => {
+  const openOpdCoverPdf = async (patient: Patient, layout: OpdCoverLayout, shouldPrint: boolean) => {
+    const expectedLayoutSignature = getOpdCoverLayoutSignature(layout);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'ไม่สามารถเปิดหน้าพิมพ์ได้',
+        message: 'กรุณาอนุญาต popup สำหรับเว็บไซต์นี้ แล้วลองพิมพ์อีกครั้ง'
+      });
+      return;
+    }
+
+    printWindow.document.write('<p style="font-family: sans-serif; padding: 24px;">กำลังสร้างหน้าปก OPD...</p>');
+    printWindow.document.close();
+
+    try {
+      const response = await fetch('/api/opd-cover/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patient, layout })
+      });
+
+      if (!response.ok) {
+        let message = 'ไม่สามารถสร้างไฟล์หน้าปก OPD ได้';
+        try {
+          const payload = await response.json();
+          message = payload.message || message;
+        } catch {
+          // Use default message when the response is not JSON.
+        }
+        throw new Error(message);
+      }
+
+      const responseLayoutSignature = response.headers.get('X-OPD-Cover-Layout-Signature');
+      const responseLayoutSource = response.headers.get('X-OPD-Cover-Layout-Source');
+      if (responseLayoutSource !== 'request' || responseLayoutSignature !== expectedLayoutSignature) {
+        throw new Error('API สร้างหน้าปก OPD ยังไม่ได้ใช้ค่าปรับล่าสุด กรุณา restart server ด้วยคำสั่ง npm.cmd run dev แล้วลองอีกครั้ง');
+      }
+
+      const pdfBlob = await response.blob();
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      printWindow.location.href = pdfUrl;
+      if (shouldPrint) {
+        window.setTimeout(() => {
+          try {
+            printWindow.focus();
+            printWindow.print();
+          } catch {
+            // Some PDF viewers block scripted print; the PDF tab remains open for manual printing.
+          }
+        }, 1000);
+      }
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
+    } catch (error) {
+      printWindow.close();
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'ไม่สามารถพิมพ์หน้าปก OPD ได้',
+        message: error instanceof Error ? error.message : 'กรุณาลองใหม่อีกครั้ง'
+      });
+    }
+  };
+
+  const handlePrintOpdCover = async (patient: Patient) => {
+    await openOpdCoverPdf(patient, opdCoverLayout, true);
+  };
+
+  const handlePrintPatientSticker = (patient: Patient) => {
+    const printWindow = window.open('', '_blank', 'width=420,height=260');
+    if (!printWindow) {
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'ไม่สามารถเปิดหน้าพิมพ์ได้',
+        message: 'กรุณาอนุญาต popup สำหรับเว็บไซต์นี้ แล้วลองพิมพ์อีกครั้ง'
+      });
+      return;
+    }
+
+    const hn = escapeHtml(patient.hn || '-');
+    const name = escapeHtml(getPatientDisplayName(patient));
+    printWindow.document.write(`
+      <!doctype html>
+      <html lang="th">
+        <head>
+          <meta charset="utf-8" />
+          <title>Patient Sticker ${hn}</title>
+          <style>
+            @page {
+              size: 70mm 35mm;
+              margin: 0;
+            }
+            * {
+              box-sizing: border-box;
+            }
+            html,
+            body {
+              width: 70mm;
+              height: 35mm;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              color: #000;
+              font-family: Sarabun, Tahoma, Arial, sans-serif;
+            }
+            .sticker {
+              width: 70mm;
+              height: 35mm;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              gap: 1.5mm;
+              padding: 2mm 3mm;
+              overflow: hidden;
+              text-align: center;
+            }
+            .hn {
+              width: 100%;
+              font-size: 20pt;
+              font-weight: 700;
+              line-height: 1.12;
+              white-space: nowrap;
+            }
+            .name {
+              width: 100%;
+              font-size: 16pt;
+              font-weight: 700;
+              line-height: 1.18;
+              white-space: nowrap;
+              overflow: visible;
+            }
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sticker">
+            <div class="hn">HN. ${hn}</div>
+            <div class="name">${name}</div>
+          </div>
+          <script>
+            function fitText(element, minSize) {
+              var currentSize = parseFloat(window.getComputedStyle(element).fontSize);
+              while (element.scrollWidth > element.clientWidth && currentSize > minSize) {
+                currentSize -= 1;
+                element.style.fontSize = currentSize + 'px';
+              }
+            }
+
+            function isStickerOverflowing(sticker) {
+              return sticker.scrollHeight > sticker.clientHeight || sticker.scrollWidth > sticker.clientWidth;
+            }
+
+            function shrinkPair(hn, name, minHnSize, minNameSize) {
+              var hnSize = parseFloat(window.getComputedStyle(hn).fontSize);
+              var nameSize = parseFloat(window.getComputedStyle(name).fontSize);
+              if (nameSize > minNameSize) {
+                name.style.fontSize = (nameSize - 1) + 'px';
+                return true;
+              }
+              if (hnSize > minHnSize) {
+                hn.style.fontSize = (hnSize - 1) + 'px';
+                return true;
+              }
+              return false;
+            }
+
+            function fitSticker() {
+              var sticker = document.querySelector('.sticker');
+              var hn = document.querySelector('.hn');
+              var name = document.querySelector('.name');
+              fitText(hn, 16);
+              fitText(name, 13);
+
+              if (name.scrollWidth > name.clientWidth) {
+                name.style.whiteSpace = 'normal';
+                name.style.lineHeight = '1.08';
+                name.style.overflow = 'visible';
+                fitText(name, 12);
+              }
+
+              var attempts = 0;
+              while (isStickerOverflowing(sticker) && attempts < 30) {
+                if (attempts === 10) {
+                  sticker.style.gap = '1mm';
+                  sticker.style.paddingTop = '1.5mm';
+                  sticker.style.paddingBottom = '1.5mm';
+                }
+                if (!shrinkPair(hn, name, 15, 11)) break;
+                attempts += 1;
+              }
+            }
+
+            window.addEventListener('load', function () {
+              window.focus();
+              setTimeout(function () {
+                fitSticker();
+                requestAnimationFrame(function () {
+                  setTimeout(function () {
+                    window.print();
+                  }, 50);
+                });
+              }, 150);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handlePreviewOpdCover = async (layout: OpdCoverLayout) => {
+    await openOpdCoverPdf(sortedPatients[0] || MOCK_OPD_COVER_PATIENT, layout, false);
+  };
+
+  const handleSaveOpdCoverLayout = async (layout: OpdCoverLayout) => {
+    try {
+      await updateOpdCoverLayout(layout);
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'บันทึกสำเร็จ',
+        message: 'บันทึกตำแหน่งและขนาดตัวอักษรหน้าปก OPD เรียบร้อยแล้ว'
+      });
+    } catch (error) {
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'เกิดข้อผิดพลาด',
+        message: 'ไม่สามารถบันทึกการตั้งค่าหน้าปก OPD ได้'
+      });
+    }
+  };
+
+  const handleResetOpdCoverLayout = async () => {
+    try {
+      await resetOpdCoverLayout();
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'คืนค่าเริ่มต้นแล้ว',
+        message: 'คืนค่าตำแหน่งและขนาดตัวอักษรหน้าปก OPD เรียบร้อยแล้ว'
+      });
+    } catch (error) {
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'เกิดข้อผิดพลาด',
+        message: 'ไม่สามารถคืนค่าเริ่มต้นหน้าปก OPD ได้'
+      });
+    }
+  };
+
+  const confirmOpenVisit = async (_nextStatus: VisitStatus) => {
     if (!openingVisitPatient) return;
     setIsSubmitting(true);
     try {
-      const success = await openVisit(openingVisitPatient, nextStatus);
+      const success = await openVisit(openingVisitPatient);
       if (success) {
         setModalConfig({
           isOpen: true,
@@ -222,6 +557,17 @@ export default function Registration() {
   const handleUpdatePatient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPatient) return;
+
+    const birthDateError = validateBirthDate(editForm.birthDate, false);
+    if (birthDateError) {
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'ข้อมูลไม่ถูกต้อง',
+        message: birthDateError
+      });
+      return;
+    }
 
     const fullName = `${editForm.title} ${editForm.firstName} ${editForm.lastName}`;
     const updatedData = { ...editForm, name: fullName };
@@ -309,6 +655,17 @@ export default function Registration() {
           <Users size={18} />
           รายชื่อผู้ป่วยที่ลงทะเบียนแล้ว (Master Data)
         </button>
+        <button
+          onClick={() => setActiveTab('opd-settings')}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'opd-settings'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <SlidersHorizontal size={18} />
+          ตั้งค่าหน้าปก OPD
+        </button>
       </div>
 
       {activeTab === 'register' && (
@@ -319,6 +676,12 @@ export default function Registration() {
           errors={errors}
           setErrors={setErrors}
           onCheckDuplicate={handleCheckDuplicate}
+          onShowAlert={(title, message) => setModalConfig({
+            isOpen: true,
+            type: 'alert',
+            title,
+            message
+          })}
         />
       )}
       
@@ -333,6 +696,17 @@ export default function Registration() {
           onEdit={handleEdit}
           onDelete={handleDeletePatient}
           onOpenVisit={handleOpenVisit}
+          onPrintOpdCover={handlePrintOpdCover}
+          onPrintSticker={handlePrintPatientSticker}
+        />
+      )}
+
+      {activeTab === 'opd-settings' && (
+        <OpdCoverSettings
+          layout={opdCoverLayout}
+          onSave={handleSaveOpdCoverLayout}
+          onReset={handleResetOpdCoverLayout}
+          onPreview={handlePreviewOpdCover}
         />
       )}
 

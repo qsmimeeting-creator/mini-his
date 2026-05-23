@@ -1,50 +1,102 @@
 import React, { useState } from 'react';
-import { X, Activity, Thermometer, Heart, Weight, Scale, CheckCircle2, ClipboardList, AlertTriangle, Search, Filter } from 'lucide-react';
-import { Visit, Vaccine, VisitStatus } from '../../types';
+import { X, Activity, Thermometer, Heart, Scale, CheckCircle2, ClipboardList, AlertTriangle, Search, Filter, Lock } from 'lucide-react';
+import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
+import { OrderDraft, formatDoseNumber, getPaidOrders, getUnpaidOrders } from '../../utils/orderWorkflow';
 
 interface DoctorOrderModalProps {
   visit: Visit;
+  visits: Visit[];
   onClose: () => void;
-  onConfirm: (selectedVaccines: string[], additionalData: { doctorNote: string, diagnosis: string }, nextStatus: VisitStatus) => void;
+  onConfirm: (selectedOrders: OrderDraft[], additionalData: { doctorNote: string, diagnosis: string }, nextStatus: VisitStatus) => void;
 }
 
-export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClose, onConfirm }) => {
+const DOSE_OPTIONS = ['1', '2', '3', 'เข็มกระตุ้น', 'ไม่ระบุเข็ม'];
+
+export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visits, onClose, onConfirm }) => {
   const { vaccines, patients } = useAppContext();
-  const [selectedVaccines, setSelectedVaccines] = useState<string[]>(() => {
-    // If there are existing orders, pre-select them
-    if (visit.data?.orders && Array.isArray(visit.data.orders)) {
-      return visit.data.orders.map((o: any) => o.id).filter(Boolean);
-    }
-    return [];
+  const paidOrders = getPaidOrders(visit);
+  const editableExistingOrders = getUnpaidOrders(visit);
+  const editableExistingIds = new Set(editableExistingOrders.map((order: any) => order.id).filter(Boolean));
+  const [selectedVaccines, setSelectedVaccines] = useState<string[]>(() =>
+    editableExistingOrders.map((order: any) => order.id).filter(Boolean)
+  );
+  const [doseNumbers, setDoseNumbers] = useState<Record<string, string>>(() => {
+    return editableExistingOrders.reduce((acc: Record<string, string>, order: any) => {
+      if (order.id && (order.doseLabel || order.doseNumber)) {
+        acc[order.id] = order.doseLabel?.startsWith('เข็มที่ ')
+          ? order.doseLabel.replace('เข็มที่ ', '')
+          : order.doseLabel || String(order.doseNumber);
+      }
+      return acc;
+    }, {});
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [doctorNote, setDoctorNote] = useState(visit.data?.doctorNote || '');
   const [diagnosis, setDiagnosis] = useState(visit.data?.diagnosis || '');
   const nextStatus: VisitStatus = 'POST_DOCTOR_PENDING';
-  
-  const patient = patients.find(p => p.id === visit.patientId);
 
+  const patient = patients.find(p => p.id === visit.patientId);
+  const paidVaccineIds = new Set(paidOrders.map((order: any) => order.id));
+  const today = visit.timestamp.split('T')[0];
+  const orderedTodayVaccineIds = new Set(
+    visits
+      .filter(v => v.patientId === visit.patientId && v.status !== 'VOID' && v.timestamp.startsWith(today))
+      .flatMap(v => v.data?.orders || [])
+      .map((order: any) => order.id)
+      .filter(Boolean)
+  );
   const vaccineTypes = Array.from(new Set(vaccines.map(v => v.type))).filter(Boolean);
 
   const filteredVaccines = vaccines.filter(vac => {
-    const matchesSearch = vac.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          (vac.genericName && vac.genericName.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = vac.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (vac.genericName && vac.genericName.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesType = selectedType === 'all' || vac.type === selectedType;
     return matchesSearch && matchesType;
   });
 
+  const selectedEditableVaccines = selectedVaccines
+    .map(id => vaccines.find(v => v.id === id))
+    .filter(Boolean);
+  const editableTotal = selectedEditableVaccines.reduce((sum, vac) => sum + (vac?.price || 0), 0);
+  const hasCompleteDoseSelection = selectedVaccines.every(id => Boolean(doseNumbers[id]));
+  const canSubmit = selectedVaccines.length > 0 && hasCompleteDoseSelection;
+
   const toggleVaccine = (id: string) => {
-    setSelectedVaccines(prev => 
-      prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]
-    );
+    if (orderedTodayVaccineIds.has(id) && !editableExistingIds.has(id)) return;
+    setSelectedVaccines(prev => {
+      const isSelected = prev.includes(id);
+      if (isSelected) {
+        setDoseNumbers(current => {
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
+        return prev.filter(v => v !== id);
+      }
+      return [...prev, id];
+    });
+  };
+
+  const handleDoseChange = (id: string, value: string) => {
+    setDoseNumbers(prev => ({ ...prev, [id]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirm(selectedVaccines, { doctorNote, diagnosis }, nextStatus);
+    if (!canSubmit) return;
+    const selectedOrders = selectedVaccines.map(id => {
+      const selectedDose = doseNumbers[id];
+      const isNumericDose = /^\d+$/.test(selectedDose);
+      return {
+        id,
+        ...(isNumericDose ? { doseNumber: Number(selectedDose) } : {}),
+        ...(!isNumericDose ? { doseLabel: selectedDose } : {}),
+      };
+    });
+    onConfirm(selectedOrders, { doctorNote, diagnosis }, nextStatus);
   };
 
   if (!patient) return null;
@@ -71,14 +123,13 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
           <PatientSummaryBar patient={patient} visit={visit} />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: Screening & Vitals */}
             <div className="lg:col-span-1 space-y-6">
               <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-5">
                 <div className="flex items-center gap-2 text-blue-700 font-bold border-b border-gray-50 pb-2">
                   <Activity size={18} />
                   <span>ข้อมูลคัดกรองเบื้องต้น</span>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                     <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Blood Pressure</p>
@@ -110,68 +161,77 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
                   </div>
                 </div>
 
-                <div className="space-y-3 pt-2 border-t border-gray-50">
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">แบบสอบถามคัดกรอง</p>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
-                      <span className="text-gray-600">มีไข้หรือป่วยในวันนี้:</span>
-                      <span className={`font-bold px-2 py-0.5 rounded ${visit.data?.q1 === 'yes' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {visit.data?.q1 === 'yes' ? 'มี' : 'ไม่มี'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
-                      <span className="text-gray-600">ตั้งครรภ์หรือให้นมบุตร:</span>
-                      <span className={`font-bold px-2 py-0.5 rounded ${visit.data?.q2 === 'yes' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {visit.data?.q2 === 'yes' ? 'ใช่' : 'ไม่ใช่'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
-                      <span className="text-gray-600">เคยแพ้วัคซีนรุนแรง:</span>
-                      <span className={`font-bold px-2 py-0.5 rounded ${visit.data?.q3 === 'yes' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {visit.data?.q3 === 'yes' ? 'เคย' : 'ไม่เคย'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Selected Vaccines List */}
                 <div className="space-y-3 pt-4 border-t border-gray-100">
                   <div className="flex items-center justify-between">
                     <p className="text-[10px] text-gray-400 font-bold uppercase flex items-center gap-1">
                       <CheckCircle2 size={12} className="text-blue-500" />
-                      รายการที่เลือก ({selectedVaccines.length})
+                      รายการที่เลือก ({paidOrders.length + selectedVaccines.length})
                     </p>
-                    {selectedVaccines.length > 0 && (
-                      <span className="text-xs font-bold text-blue-600">
-                        ฿{selectedVaccines.reduce((sum, id) => sum + (vaccines.find(v => v.id === id)?.price || 0), 0).toLocaleString()}
-                      </span>
-                    )}
+                    <span className="text-xs font-bold text-blue-600">
+                      ฿{editableTotal.toLocaleString()}
+                    </span>
                   </div>
-                  
+
+                  {paidOrders.length > 0 && (
+                    <div className="space-y-2">
+                      {paidOrders.map((order: any, index: number) => (
+                        <div key={`${order.id}-${index}`} className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+                          <div className="flex justify-between gap-2">
+                            <div>
+                              <div className="font-bold text-gray-700 leading-tight">{order.name}</div>
+                              <div className="text-[10px] text-gray-500">{formatDoseNumber(order.doseNumber, order.doseLabel) || 'ไม่ระบุเลขเข็ม'}</div>
+                            </div>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-600 bg-white border border-gray-200 rounded-full px-2 py-0.5 h-fit">
+                              <Lock size={10} /> ชำระแล้ว
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {selectedVaccines.length === 0 ? (
                     <div className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                      <p className="text-xs text-gray-400">ยังไม่ได้เลือกวัคซีน</p>
+                      <p className="text-xs text-gray-400">ยังไม่มีรายการใหม่/ค้างชำระ</p>
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                    <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
                       {selectedVaccines.map(id => {
                         const vac = vaccines.find(v => v.id === id);
                         if (!vac) return null;
                         return (
-                          <div key={id} className="flex justify-between items-start p-2.5 bg-blue-50/50 border border-blue-100 rounded-lg text-sm group">
-                            <div className="flex flex-col pr-2">
-                              <span className="font-bold text-gray-800 leading-tight">{vac.name}</span>
-                              <span className="text-[10px] text-gray-500">{vac.genericName || 'N/A'}</span>
+                          <div key={id} className="p-2.5 bg-blue-50/50 border border-blue-100 rounded-lg text-sm group space-y-2">
+                            <div className="flex justify-between items-start">
+                              <div className="flex flex-col pr-2">
+                                <span className="font-bold text-gray-800 leading-tight">{vac.name}</span>
+                                <span className="text-[10px] text-gray-500">{vac.genericName || 'N/A'}</span>
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="font-bold text-blue-600">฿{vac.price.toLocaleString()}</span>
+                                <button
+                                  onClick={(e) => { e.preventDefault(); toggleVaccine(id); }}
+                                  className="text-[10px] text-red-500 hover:text-red-700 font-medium"
+                                >
+                                  ลบออก
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex flex-col items-end gap-1">
-                              <span className="font-bold text-blue-600">฿{vac.price.toLocaleString()}</span>
-                              <button 
-                                onClick={(e) => { e.preventDefault(); toggleVaccine(id); }}
-                                className="text-[10px] text-red-500 hover:text-red-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                            <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                              <span className="font-bold">เข็มที่ <span className="text-red-500">*</span></span>
+                              <select
+                                value={doseNumbers[id] || ''}
+                                onChange={e => handleDoseChange(id, e.target.value)}
+                                required
+                                className="w-36 border border-blue-200 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                               >
-                                ลบออก
-                              </button>
-                            </div>
+                                <option value="">เลือกเข็ม</option>
+                                {DOSE_OPTIONS.map(option => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
                           </div>
                         );
                       })}
@@ -180,17 +240,16 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
                 </div>
               </div>
 
-              {/* Doctor's Notes & Diagnosis */}
               <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-blue-700 font-bold border-b border-gray-50 pb-2">
                   <ClipboardList size={18} />
                   <span>บันทึกการตรวจและวินิจฉัย</span>
                 </div>
-                
+
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-gray-500 uppercase">การวินิจฉัย (Diagnosis)</label>
-                    <input 
+                    <input
                       type="text"
                       value={diagnosis}
                       onChange={e => setDiagnosis(e.target.value)}
@@ -200,7 +259,7 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
                   </div>
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-gray-500 uppercase">บันทึกเพิ่มเติม (Doctor's Note)</label>
-                    <textarea 
+                    <textarea
                       rows={3}
                       value={doctorNote}
                       onChange={e => setDoctorNote(e.target.value)}
@@ -212,7 +271,6 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
               </div>
             </div>
 
-            {/* Right: Vaccine Selection */}
             <div className="lg:col-span-2 space-y-4 flex flex-col h-[600px]">
               <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                 <h4 className="font-bold text-gray-700 flex items-center gap-2">
@@ -260,61 +318,82 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
                     <p className="text-sm">ลองค้นหาด้วยคำอื่น หรือเลือกประเภทอื่น</p>
                   </div>
                 ) : (
-                  filteredVaccines.map(vac => (
-                  <label 
-                    key={vac.id} 
-                    className={`group relative flex flex-col p-4 rounded-2xl cursor-pointer transition-all border-2 ${
-                      selectedVaccines.includes(vac.id) 
-                        ? 'bg-blue-50 border-blue-500 shadow-md shadow-blue-100' 
-                        : 'bg-white border-gray-100 hover:border-blue-200 hover:bg-gray-50 shadow-sm'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                        selectedVaccines.includes(vac.id) ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-200'
-                      }`}>
-                        {selectedVaccines.includes(vac.id) && <CheckCircle2 size={16} className="text-white" />}
-                      </div>
-                      <span className="text-lg font-bold text-blue-600">฿{vac.price.toLocaleString()}</span>
-                    </div>
-
-                    <input 
-                      type="checkbox" 
-                      className="hidden"
-                      checked={selectedVaccines.includes(vac.id)}
-                      onChange={() => toggleVaccine(vac.id)}
-                    />
-                    
-                    <div className="space-y-1">
-                      <div className="font-bold text-gray-900 leading-tight group-hover:text-blue-700 transition-colors">{vac.name}</div>
-                      <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">{vac.genericName || 'N/A'}</div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-gray-400 font-bold uppercase">Lot Number</span>
-                        <span className="text-xs font-mono font-bold text-gray-700">{vac.lot}</span>
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-gray-400 font-bold uppercase">คงเหลือ</span>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                          vac.stock < 10 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
-                        }`}>
-                          {vac.stock} {vac.unit || 'โดส'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {vac.stock <= 0 && (
-                      <div className="absolute inset-0 bg-white/80 backdrop-blur-[1px] rounded-2xl flex items-center justify-center z-10">
-                        <div className="bg-red-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2">
-                          <AlertTriangle size={14} />
-                          สินค้าหมด
+                  filteredVaccines.map(vac => {
+                    const checked = selectedVaccines.includes(vac.id);
+                    const hasPaidHistory = paidVaccineIds.has(vac.id);
+                    const isDuplicateToday = orderedTodayVaccineIds.has(vac.id) && !editableExistingIds.has(vac.id);
+                    return (
+                      <label
+                        key={vac.id}
+                        className={`group relative flex flex-col p-4 rounded-2xl transition-all border-2 ${
+                          isDuplicateToday
+                            ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-75'
+                            : checked
+                              ? 'bg-blue-50 border-blue-500 shadow-md shadow-blue-100 cursor-pointer'
+                              : 'bg-white border-gray-100 hover:border-blue-200 hover:bg-gray-50 shadow-sm cursor-pointer'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                            checked ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-200'
+                          }`}>
+                            {checked && <CheckCircle2 size={16} className="text-white" />}
+                          </div>
+                          <span className="text-lg font-bold text-blue-600">฿{vac.price.toLocaleString()}</span>
                         </div>
-                      </div>
-                    )}
-                  </label>
-                )))}
+
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={checked}
+                          disabled={isDuplicateToday}
+                          onChange={() => toggleVaccine(vac.id)}
+                        />
+
+                        <div className="space-y-1">
+                          <div className="font-bold text-gray-900 leading-tight group-hover:text-blue-700 transition-colors">{vac.name}</div>
+                          <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">{vac.genericName || 'N/A'}</div>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase">Lot Number</span>
+                            <span className="text-xs font-mono font-bold text-gray-700">{vac.lot}</span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase">คงเหลือ</span>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                              vac.stock < 10 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
+                            }`}>
+                              {vac.stock} {vac.unit || 'โดส'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {hasPaidHistory && (
+                          <div className="absolute right-3 top-3 bg-gray-700 text-white px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1">
+                            <Lock size={10} /> ชำระแล้ว
+                          </div>
+                        )}
+
+                        {isDuplicateToday && !hasPaidHistory && (
+                          <div className="absolute right-3 top-3 bg-amber-600 text-white px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1">
+                            <Lock size={10} /> สั่งแล้ววันนี้
+                          </div>
+                        )}
+
+                        {vac.stock <= 0 && (
+                          <div className="absolute inset-0 bg-white/80 backdrop-blur-[1px] rounded-2xl flex items-center justify-center z-10">
+                            <div className="bg-red-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2">
+                              <AlertTriangle size={14} />
+                              สินค้าหมด
+                            </div>
+                          </div>
+                        )}
+                      </label>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
@@ -323,27 +402,28 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, onClo
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <div className="flex flex-col">
-              <span className="text-[10px] text-gray-400 font-bold uppercase">เลือกแล้ว</span>
+              <span className="text-[10px] text-gray-400 font-bold uppercase">รายการใหม่/ค้างชำระ</span>
               <span className="text-lg font-bold text-blue-600">{selectedVaccines.length} รายการ</span>
+              {!hasCompleteDoseSelection && selectedVaccines.length > 0 && (
+                <span className="text-[10px] text-red-500 font-bold">กรุณาเลือกเข็มให้ครบ</span>
+              )}
             </div>
             <div className="h-8 w-px bg-gray-200"></div>
             <div className="flex flex-col">
-              <span className="text-[10px] text-gray-400 font-bold uppercase">ยอดรวมประมาณการ</span>
-              <span className="text-lg font-bold text-emerald-600">
-                ฿{selectedVaccines.reduce((sum, id) => sum + (vaccines.find(v => v.id === id)?.price || 0), 0).toLocaleString()}
-              </span>
+              <span className="text-[10px] text-gray-400 font-bold uppercase">ยอดที่ต้องชำระรอบนี้</span>
+              <span className="text-lg font-bold text-emerald-600">฿{editableTotal.toLocaleString()}</span>
             </div>
           </div>
           <div className="flex gap-3">
-            <button 
+            <button
               onClick={onClose}
               className="px-8 py-3 text-sm font-bold text-gray-700 bg-white border-2 border-gray-100 rounded-xl hover:bg-gray-50 hover:border-gray-200 transition-all"
             >
               ยกเลิก
             </button>
-            <button 
+            <button
               onClick={handleSubmit}
-              disabled={selectedVaccines.length === 0}
+              disabled={!canSubmit}
               className="px-12 py-3 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <CheckCircle2 size={20} />

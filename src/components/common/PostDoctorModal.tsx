@@ -3,6 +3,7 @@ import { X, CheckCircle2, ClipboardList, AlertCircle } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
+import { formatDoseNumber, getUnpaidOrders, isOrderPaid } from '../../utils/orderWorkflow';
 
 interface PostDoctorModalProps {
   visit: Visit;
@@ -14,6 +15,8 @@ export const PostDoctorModal: React.FC<PostDoctorModalProps> = ({ visit, onClose
   const { patients } = useAppContext();
   const patient = patients.find(p => p.id === visit.patientId);
   const orders = visit.data?.orders || [];
+  const unpaidOrders = getUnpaidOrders(visit);
+  const unpaidTotal = unpaidOrders.reduce((sum: number, order: any) => sum + (order.price || 0), 0);
   const nextStatus: VisitStatus = 'PAYMENT_PENDING';
 
   return (
@@ -50,8 +53,14 @@ export const PostDoctorModal: React.FC<PostDoctorModalProps> = ({ visit, onClose
                   <tbody className="divide-y divide-gray-200">
                     {orders.map((order: any, idx: number) => (
                       <tr key={idx}>
-                        <td className="px-4 py-3 font-medium text-gray-800">{order.name}</td>
-                        <td className="px-4 py-3 text-right text-blue-600 font-bold">฿{order.price.toLocaleString()}</td>
+                        <td className="px-4 py-3 font-medium text-gray-800">
+                          <div>{order.name}</div>
+                          <div className="text-[10px] text-gray-500">
+                            {formatDoseNumber(order.doseNumber, order.doseLabel) || 'ไม่ระบุเลขเข็ม'}
+                            {isOrderPaid(order, visit) ? ' • ชำระแล้ว' : ' • ค้างชำระ'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right text-blue-600 font-bold">฿{(order.price || 0).toLocaleString()}</td>
                       </tr>
                     ))}
                     {orders.length === 0 && (
@@ -62,9 +71,9 @@ export const PostDoctorModal: React.FC<PostDoctorModalProps> = ({ visit, onClose
                   </tbody>
                   <tfoot className="bg-blue-50 font-bold">
                     <tr>
-                      <td className="px-4 py-3 text-gray-700">รวมทั้งสิ้น</td>
+                      <td className="px-4 py-3 text-gray-700">ยอดค้างชำระ</td>
                       <td className="px-4 py-3 text-right text-blue-700 text-lg">
-                        ฿{orders.reduce((sum: number, o: any) => sum + o.price, 0).toLocaleString()}
+                        ฿{unpaidTotal.toLocaleString()}
                       </td>
                     </tr>
                   </tfoot>

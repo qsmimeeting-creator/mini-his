@@ -1,6 +1,6 @@
 import React from 'react';
-import { Plus, User, Heart } from 'lucide-react';
-import { VisitStatus } from '../../types';
+import { AlertCircle, CheckCircle2, CreditCard, Loader2, Plus, User, Heart } from 'lucide-react';
+import type { ThaiIdCardFormData, ThaiIdCardReadResponse } from '../../types';
 import {
   searchAddressBySubDistrict,
   searchAddressByDistrict,
@@ -9,12 +9,17 @@ import {
 } from 'thai-address-universal';
 import { formatThaiPhone } from '../../utils/formatters';
 
+const THAI_ID_CARD_READER_URL =
+  ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_THAI_ID_CARD_READER_URL ||
+    'http://127.0.0.1:32123/api/thai-id-card/read').trim();
+
 interface RegistrationFormProps {
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => Promise<void>;
   isSubmitting: boolean;
   errors: { cid?: string; dob?: string; passport?: string };
   setErrors: React.Dispatch<React.SetStateAction<{ cid?: string; dob?: string; passport?: string }>>;
   onCheckDuplicate: (type: 'cid' | 'passport', value: string) => Promise<boolean>;
+  onShowAlert: (title: string, message: React.ReactNode) => void;
 }
 
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ 
@@ -22,26 +27,33 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   isSubmitting, 
   errors, 
   setErrors,
-  onCheckDuplicate
+  onCheckDuplicate,
+  onShowAlert
 }) => {
   const [isForeigner, setIsForeigner] = React.useState(false);
   const [cidChecked, setCidChecked] = React.useState(false);
   const [passportChecked, setPassportChecked] = React.useState(false);
   const [idValue, setIdValue] = React.useState('');
   const [isChecking, setIsChecking] = React.useState(false);
+  const [cardReadStatus, setCardReadStatus] = React.useState<'idle' | 'reading' | 'success' | 'error'>('idle');
+  const [cardReadMessage, setCardReadMessage] = React.useState('');
   const [birthDate, setBirthDate] = React.useState({ day: '', month: '', year: '' });
   const [age, setAge] = React.useState('');
   const [era, setEra] = React.useState<'BE' | 'AD'>('BE');
-  const [title, setTitle] = React.useState('นาย');
+  const [title, setTitle] = React.useState('');
   const [otherTitle, setOtherTitle] = React.useState('');
-  const [titleEn, setTitleEn] = React.useState('Mr.');
+  const [titleEn, setTitleEn] = React.useState('');
   const [otherTitleEn, setOtherTitleEn] = React.useState('');
+  const [firstName, setFirstName] = React.useState('');
+  const [lastName, setLastName] = React.useState('');
+  const [firstNameEn, setFirstNameEn] = React.useState('');
+  const [lastNameEn, setLastNameEn] = React.useState('');
   const [gender, setGender] = React.useState('');
   const [phoneType, setPhoneType] = React.useState<'mobile' | 'home'>('mobile');
   const [phone, setPhone] = React.useState('');
   const [emergencyContactPhone, setEmergencyContactPhone] = React.useState('');
   const [nationality, setNationality] = React.useState('ไทย');
-  const nextStatus: VisitStatus = 'SCREENING_PENDING';
+  const [addressLine1, setAddressLine1] = React.useState('');
 
   React.useEffect(() => {
     if (birthDate.day && birthDate.month && birthDate.year) {
@@ -151,6 +163,107 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     return checkDigit === parseInt(id.charAt(12));
   };
 
+  const applyTitleFromCard = (cardTitle: string) => {
+    const standardTitles = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
+    if (standardTitles.includes(cardTitle)) {
+      setTitle(cardTitle);
+      setOtherTitle('');
+    } else if (cardTitle) {
+      setTitle('อื่นๆ');
+      setOtherTitle(cardTitle);
+    }
+  };
+
+  const applyTitleEnFromCard = (cardTitleEn?: string) => {
+    const standardTitlesEn = ['Mr.', 'Mrs.', 'Ms.', 'Miss', 'Master'];
+    if (!cardTitleEn) return;
+
+    if (standardTitlesEn.includes(cardTitleEn)) {
+      setTitleEn(cardTitleEn);
+      setOtherTitleEn('');
+    } else {
+      setTitleEn('Other');
+      setOtherTitleEn(cardTitleEn);
+    }
+  };
+
+  const applyThaiIdCardData = (data: ThaiIdCardFormData) => {
+    setIsForeigner(false);
+    setIdValue(data.citizenId);
+    setPassportChecked(false);
+    setCidChecked(true);
+    applyTitleFromCard(data.title);
+    applyTitleEnFromCard(data.titleEn);
+    setFirstName(data.firstName);
+    setLastName(data.lastName);
+    setFirstNameEn(data.firstNameEn || '');
+    setLastNameEn(data.lastNameEn || '');
+    setGender(data.gender);
+    setNationality(data.nationality || 'ไทย');
+    setAddressLine1(data.addressLine1 || '');
+    setAddressForm({
+      subDistrict: data.subDistrict || '',
+      district: data.district || '',
+      province: data.province || '',
+      postalCode: data.postalCode || ''
+    });
+
+    if (data.birthDate) {
+      const [year, month, day] = data.birthDate.split('-');
+      setEra('BE');
+      setBirthDate({
+        day: String(parseInt(day, 10)),
+        month: String(parseInt(month, 10)),
+        year: String(parseInt(year, 10) + 543)
+      });
+    }
+  };
+
+  const handleReadThaiIdCard = async () => {
+    if (isForeigner || cardReadStatus === 'reading') return;
+
+    setCardReadStatus('reading');
+    setCardReadMessage('กำลังอ่านข้อมูลจากบัตรประชาชน...');
+
+    try {
+      const response = await fetch(THAI_ID_CARD_READER_URL, { method: 'POST' });
+      const payload = (await response.json().catch(() => null)) as ThaiIdCardReadResponse | null;
+
+      if (!payload) {
+        throw new Error('ยังไม่ได้เปิดโปรแกรมอ่านบัตรบนเครื่องนี้ หรือโปรแกรมอ่านบัตรไม่พร้อมใช้งาน');
+      }
+
+      if (payload.ok === false) {
+        throw new Error(payload.message);
+      }
+
+      const isDuplicate = await onCheckDuplicate('cid', payload.data.citizenId);
+      if (isDuplicate) {
+        setCidChecked(false);
+        setCardReadStatus('error');
+        setCardReadMessage('พบเลขบัตรนี้ในระบบแล้ว');
+        setErrors(prev => ({ ...prev, cid: 'เลขประจำตัวประชาชนนี้มีในระบบแล้ว' }));
+        onShowAlert(
+          'พบข้อมูลซ้ำ',
+          `เลขประจำตัวประชาชน ${payload.data.citizenId} มีใน Master Data แล้ว กรุณาค้นหาผู้รับบริการเดิมจากแท็บรายชื่อ`
+        );
+        return;
+      }
+
+      applyThaiIdCardData(payload.data);
+      setErrors(prev => {
+        const { cid, dob, passport, ...rest } = prev;
+        return rest;
+      });
+      setCardReadStatus('success');
+      setCardReadMessage('อ่านบัตรสำเร็จและเติมข้อมูลลงฟอร์มแล้ว');
+    } catch (error) {
+      setCidChecked(false);
+      setCardReadStatus('error');
+      setCardReadMessage(error instanceof Error ? error.message : 'อ่านข้อมูลจากบัตรประชาชนไม่สำเร็จ');
+    }
+  };
+
   const handleCheck = async () => {
     if (!idValue) {
       setErrors(prev => ({ ...prev, [isForeigner ? 'passport' : 'cid']: `กรุณาระบุ${isForeigner ? ' Passport No.' : 'เลขประจำตัวประชาชน'}` }));
@@ -186,7 +299,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
       <form onSubmit={onSubmit} className="space-y-8">
         <input type="hidden" name="birthDate" value={isoBirthDate} />
-        <input type="hidden" name="nextStatus" value={nextStatus} />
         {/* Identification Section - MOVED TO TOP */}
         <div className="space-y-4 bg-blue-50/30 p-4 rounded-xl border border-blue-100">
           <div className="flex items-center gap-2 text-blue-800 font-bold border-b border-blue-100 pb-2">
@@ -210,6 +322,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                       setIdValue('');
                       setCidChecked(false);
                       setPassportChecked(false);
+                      setCardReadStatus('idle');
+                      setCardReadMessage('');
                       setErrors(prev => {
                         const { cid, passport, ...rest } = prev;
                         return rest;
@@ -233,6 +347,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                       if (/^\d*$/.test(val)) {
                         setIdValue(val);
                         setCidChecked(false);
+                        setCardReadStatus('idle');
+                        setCardReadMessage('');
                       }
                     } else {
                       setIdValue(val);
@@ -268,6 +384,35 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               />
             </div>
           </div>
+          {!isForeigner && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleReadThaiIdCard}
+                disabled={isSubmitting || cardReadStatus === 'reading'}
+                className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-bold transition-all ${
+                  cardReadStatus === 'reading'
+                    ? 'border-blue-200 bg-blue-50 text-blue-700 cursor-wait'
+                    : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50 hover:border-blue-300 active:scale-95'
+                }`}
+              >
+                {cardReadStatus === 'reading' ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+                {cardReadStatus === 'reading' ? 'กำลังอ่านบัตร' : 'อ่านบัตรประชาชน'}
+              </button>
+              {cardReadMessage && (
+                <div className={`inline-flex items-center gap-1.5 text-xs font-bold ${
+                  cardReadStatus === 'success' ? 'text-green-700' :
+                  cardReadStatus === 'error' ? 'text-red-600' :
+                  'text-blue-700'
+                }`}>
+                  {cardReadStatus === 'success' && <CheckCircle2 size={14} />}
+                  {cardReadStatus === 'error' && <AlertCircle size={14} />}
+                  {cardReadStatus === 'reading' && <Loader2 size={14} className="animate-spin" />}
+                  <span>{cardReadMessage}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Personal Info Section */}
@@ -280,6 +425,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">คำนำหน้า <span className="text-red-500">*</span></label>
               <select name="title" required value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">เลือกคำนำหน้า</option>
                 <option value="นาย">นาย</option>
                 <option value="นาง">นาง</option>
                 <option value="นางสาว">นางสาว</option>
@@ -293,15 +439,16 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">ชื่อ <span className="text-red-500">*</span></label>
-              <input name="firstName" required className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="ชื่อจริง" />
+              <input name="firstName" required value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="ชื่อจริง" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">นามสกุล <span className="text-red-500">*</span></label>
-              <input name="lastName" required className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="นามสกุล" />
+              <input name="lastName" required value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="นามสกุล" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">คำนำหน้า (EN)</label>
               <select name="titleEn" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">Select title</option>
                 <option value="Mr.">Mr.</option>
                 <option value="Mrs.">Mrs.</option>
                 <option value="Ms.">Ms.</option>
@@ -315,16 +462,16 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">ชื่อ (EN)</label>
-              <input name="firstNameEn" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="First Name" />
+              <input name="firstNameEn" value={firstNameEn} onChange={(e) => setFirstNameEn(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="First Name" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">นามสกุล (EN)</label>
-              <input name="lastNameEn" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Last Name" />
+              <input name="lastNameEn" value={lastNameEn} onChange={(e) => setLastNameEn(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Last Name" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">เพศ <span className="text-red-500">*</span></label>
               <select name="gender" required value={gender} onChange={(e) => setGender(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                <option value="">กรุณาเลือก</option>
+                <option value="">เลือกเพศ</option>
                 <option value="male">ชาย</option>
                 <option value="female">หญิง</option>
               </select>
@@ -423,7 +570,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-sm font-medium text-gray-700">
-                  {phoneType === 'mobile' ? 'เบอร์โทรศัพท์มือถือ' : 'เบอร์โทรศัพท์บ้าน'} <span className="text-red-500">*</span>
+                  {phoneType === 'mobile' ? 'เบอร์โทรศัพท์มือถือ' : 'เบอร์โทรศัพท์บ้าน'}
                   <span className="ml-2 text-[10px] text-gray-400 font-normal">
                     ({(phone || '').replace(/\D/g, '').length}/{phoneType === 'mobile' ? '10' : '9'})
                   </span>
@@ -455,7 +602,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </div>
               <input 
                 name="phone" 
-                required 
                 value={phone}
                 onChange={(e) => setPhone(formatThaiPhone(e.target.value, phoneType))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
@@ -478,7 +624,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">ที่อยู่</label>
-              <input name="addressLine1" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="บ้านเลขที่, หมู่บ้าน, ถนน" />
+              <input name="addressLine1" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="บ้านเลขที่, หมู่บ้าน, ถนน" />
             </div>
             <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">ตำบล/แขวง</label>
@@ -632,13 +778,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               setIdValue('');
               setBirthDate({ day: '', month: '', year: '' });
               setAge('');
-              setTitle('นาย');
+              setTitle('');
               setOtherTitle('');
-              setTitleEn('Mr.');
+              setTitleEn('');
               setOtherTitleEn('');
+              setGender('');
+              setFirstName('');
+              setLastName('');
+              setFirstNameEn('');
+              setLastNameEn('');
               setPhone('');
               setEmergencyContactPhone('');
               setNationality('ไทย');
+              setAddressLine1('');
               setAddressForm({
                 subDistrict: '',
                 district: '',
@@ -647,6 +799,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               });
               setCidChecked(false);
               setPassportChecked(false);
+              setCardReadStatus('idle');
+              setCardReadMessage('');
             }} 
             className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 mr-3"
           >
@@ -664,7 +818,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             ) : (
               <Plus size={16}/>
             )}
-            {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกและส่งตรวจ'}
+            {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
           </button>
         </div>
       </form>

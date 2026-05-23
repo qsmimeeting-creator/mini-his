@@ -22,8 +22,12 @@ export default function PostDoctor() {
   }, [activeVisitId, visits, setActiveVisitId]);
 
   const handleCallQueue = async (visit: Visit) => {
-    await updateVisitStatus(visit.id, 'POST_DOCTOR_IN_PROGRESS');
-    setSelectedVisit(visit);
+    try {
+      await updateVisitStatus(visit.id, 'POST_DOCTOR_IN_PROGRESS');
+      setSelectedVisit(visit);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const handleComplete = async (visit: Visit) => {

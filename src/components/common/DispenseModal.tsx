@@ -3,6 +3,7 @@ import { X, Package, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
+import { formatDoseNumber, getOrderKey, getPendingDispenseOrders, omitUndefinedFields } from '../../utils/orderWorkflow';
 
 interface DispenseModalProps {
   visit: Visit;
@@ -13,7 +14,7 @@ interface DispenseModalProps {
 export const DispenseModal: React.FC<DispenseModalProps> = ({ visit, onClose, onConfirm }) => {
   const { patients, vaccines } = useAppContext();
   const patient = patients.find(p => p.id === visit.patientId);
-  const orders = visit.data?.orders || [];
+  const orders = getPendingDispenseOrders(visit);
   const nextStatus: VisitStatus = 'INJECTION_PENDING';
 
   const dispenseItems = orders.map((order: any) => {
@@ -35,10 +36,13 @@ export const DispenseModal: React.FC<DispenseModalProps> = ({ visit, onClose, on
     onConfirm({
       dispensedLots: dispenseItems.map(i => i.lot).join(', '),
       dispensedAt: new Date().toISOString(),
-      items: dispenseItems.map(i => ({
+      items: dispenseItems.map(i => omitUndefinedFields({
+        orderId: getOrderKey(i),
         id: i.id,
         name: i.name,
-        lot: i.lot
+        lot: i.lot,
+        ...(i.doseNumber !== undefined ? { doseNumber: i.doseNumber } : {}),
+        ...(i.doseLabel ? { doseLabel: i.doseLabel } : {})
       }))
     }, nextStatus);
   };
@@ -82,6 +86,7 @@ export const DispenseModal: React.FC<DispenseModalProps> = ({ visit, onClose, on
                       <td className="px-4 py-4">
                         <div className="font-medium text-gray-900">{item.name}</div>
                         <div className="text-[10px] text-gray-500 uppercase">{item.genericName || 'N/A'}</div>
+                        {(item.doseNumber || item.doseLabel) && <div className="text-[10px] text-blue-600">{formatDoseNumber(item.doseNumber, item.doseLabel)}</div>}
                       </td>
                       <td className="px-4 py-4 text-center font-mono text-blue-600 font-bold">{item.lot}</td>
                       <td className="px-4 py-4 text-center text-gray-600">{item.expiryDate}</td>
@@ -103,6 +108,13 @@ export const DispenseModal: React.FC<DispenseModalProps> = ({ visit, onClose, on
                       </td>
                     </tr>
                   ))}
+                  {dispenseItems.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                        ไม่มีรายการวัคซีนที่ต้องจัดเพิ่ม
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -141,7 +153,7 @@ export const DispenseModal: React.FC<DispenseModalProps> = ({ visit, onClose, on
             </button>
             <button 
               onClick={handleConfirm}
-              disabled={hasOutOfStock}
+              disabled={hasOutOfStock || dispenseItems.length === 0}
               className="px-10 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Package size={18} />

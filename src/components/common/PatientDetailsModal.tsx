@@ -1,6 +1,8 @@
 import React from 'react';
 import { X, User, Calendar, CreditCard, History, Syringe, Activity } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
+import { formatDoseNumber, getCompletedInjectionRecords } from '../../utils/orderWorkflow';
+import { VaccineHistoryTable } from './VaccineHistoryTable';
 import { format, parseISO, isValid } from 'date-fns';
 import { th } from 'date-fns/locale';
 
@@ -52,6 +54,14 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
 
   const displayAge = patient.age || calculateAge(patient.birthDate);
 
+  const completedVaccineRecords = patientVisits.flatMap(visit =>
+    getCompletedInjectionRecords(visit).map((record: any) => ({
+      ...record,
+      visitDate: visit.data?.injectedAt || visit.timestamp,
+      vn: visit.vn,
+    }))
+  );
+
   const formatDateTime = (dateStr: string) => {
     try {
       const date = parseISO(dateStr);
@@ -66,7 +76,7 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
 
   return (
     <div className="fixed inset-0 bg-gray-900/60 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
           <div className="flex items-center gap-3">
@@ -191,6 +201,8 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
               ประวัติการรับบริการและฉีดวัคซีน
             </h4>
             
+            <VaccineHistoryTable records={completedVaccineRecords} emptyMessage="ไม่พบประวัติการฉีดวัคซีน" />
+            <div className="hidden">
             {patientVisits.length === 0 ? (
               <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400">
                 <Syringe size={32} className="mx-auto mb-2 opacity-20" />
@@ -198,7 +210,9 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
               </div>
             ) : (
               <div className="space-y-3">
-                {patientVisits.map((visit) => (
+                {patientVisits.map((visit) => {
+                  const completedVaccines = getCompletedInjectionRecords(visit);
+                  return (
                   <div key={visit.id} className="border border-gray-100 rounded-xl p-4 hover:bg-gray-50 transition-colors">
                     <div className="flex justify-between items-start mb-3">
                       <div>
@@ -208,36 +222,31 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
                       <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">เสร็จสิ้น</span>
                     </div>
                     
-                    {visit.data?.orders && visit.data.orders.length > 0 && (
+                    {completedVaccines.length > 0 ? (
                       <div className="mt-2 space-y-2">
                         <p className="text-xs font-bold text-gray-400 uppercase">วัคซีนที่ได้รับ:</p>
                         <div className="flex flex-wrap gap-2">
-                          {visit.data.orders.map((order: any, idx: number) => (
-                            <div key={idx} className="bg-white border border-gray-200 rounded-lg p-2 flex items-center gap-2 shadow-sm">
+                          {completedVaccines.map((record: any, idx: number) => (
+                            <div key={record.orderId || `${record.vaccineId}-${idx}`} className="bg-white border border-gray-200 rounded-lg p-2 flex items-center gap-2 shadow-sm">
                               <Syringe size={14} className="text-emerald-500" />
                               <div>
-                                <p className="text-xs font-bold text-gray-800">{order.name}</p>
-                                <p className="text-[10px] text-gray-500">Lot: {visit.data.dispensedLots || 'N/A'}</p>
-                                {visit.data?.injectionRecords && (
-                                  <div className="mt-1">
-                                    {visit.data.injectionRecords
-                                      .filter((r: any) => r.vaccineId === order.id)
-                                      .map((r: any, rIdx: number) => (
-                                        <p key={rIdx} className="text-[10px] text-blue-600 font-medium">
-                                          {r.route} | {r.site}
-                                        </p>
-                                      ))}
-                                  </div>
-                                )}
-                                {!visit.data?.injectionRecords && visit.data?.route && (
+                                <p className="text-xs font-bold text-gray-800">{record.vaccineName || record.name || '-'}</p>
+                                {(record.doseNumber || record.doseLabel) && <p className="text-[10px] text-blue-600">{formatDoseNumber(record.doseNumber, record.doseLabel)}</p>}
+                                <p className="text-[10px] text-gray-500">Lot: {record.lot || 'N/A'}</p>
+                                {(record.route || record.site) && (
                                   <p className="text-[10px] text-blue-600 font-medium">
-                                    {visit.data.route} | {visit.data.site}
+                                    {record.route || '-'} | {record.site || '-'}
                                   </p>
                                 )}
+                                {record.note && <p className="text-[10px] text-gray-500">{record.note}</p>}
                               </div>
                             </div>
                           ))}
                         </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-lg px-3 py-2">
+                        ยังไม่มีประวัติการฉีดวัคซีนสำเร็จ
                       </div>
                     )}
                     
@@ -250,9 +259,11 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({ patien
                       </div>
                     )}
                   </div>
-                ))}
+                );
+                })}
               </div>
             )}
+            </div>
           </section>
         </div>
 

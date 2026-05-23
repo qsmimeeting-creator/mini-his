@@ -4,6 +4,12 @@ import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User,
 import { collection, onSnapshot, doc, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
 import { Patient, Visit, Vaccine } from '../types';
 import { handleFirestoreError, OperationType } from '../utils/firestore';
+import { removeUndefinedDeep } from '../utils/firestoreData';
+import {
+  DEFAULT_OPD_COVER_LAYOUT,
+  normalizeOpdCoverLayout,
+  type OpdCoverLayout
+} from '../utils/opdCoverLayout';
 
 interface ModalConfig {
   isOpen: boolean;
@@ -22,6 +28,7 @@ interface AppContextType {
   patients: Patient[];
   visits: Visit[];
   vaccines: Vaccine[];
+  opdCoverLayout: OpdCoverLayout;
   modalConfig: ModalConfig;
   setModalConfig: (config: ModalConfig) => void;
   activeVisitId: string | null;
@@ -29,7 +36,7 @@ interface AppContextType {
   registerPatient: (patient: Omit<Patient, 'id' | 'hn'>) => Promise<Patient>;
   updatePatient: (patientId: string, patientData: Partial<Patient>) => Promise<void>;
   deletePatient: (patientId: string) => Promise<void>;
-  openVisit: (patient: Patient) => Promise<void>;
+  openVisit: (patient: Patient) => Promise<boolean>;
   updateVisitStatus: (visitId: string, newStatus: string, additionalData?: any) => Promise<void>;
   updateVaccineStock: (vaccineId: string, newStock: number) => Promise<void>;
   addVaccine: (vaccine: Vaccine) => Promise<void>;
@@ -37,6 +44,8 @@ interface AppContextType {
   deleteVaccine: (vaccineId: string) => Promise<void>;
   voidVisit: (visitId: string) => Promise<void>;
   resetSystem: () => Promise<void>;
+  updateOpdCoverLayout: (layout: OpdCoverLayout) => Promise<void>;
+  resetOpdCoverLayout: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -47,6 +56,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [vaccines, setVaccines] = useState<Vaccine[]>([]);
+  const [opdCoverLayout, setOpdCoverLayout] = useState<OpdCoverLayout>(DEFAULT_OPD_COVER_LAYOUT);
   const [activeVisitId, setActiveVisitId] = useState<string | null>(null);
   
   const [modalConfig, setModalConfig] = useState<ModalConfig>({
@@ -123,17 +133,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         ];
         INITIAL_VACCINES.forEach(v => {
-          setDoc(doc(db, 'vaccines', v.id), v).catch(e => handleFirestoreError(e, OperationType.CREATE, `vaccines/${v.id}`));
+          setDoc(doc(db, 'vaccines', v.id), removeUndefinedDeep(v)).catch(e => handleFirestoreError(e, OperationType.CREATE, `vaccines/${v.id}`));
         });
       } else {
         setVaccines(vacs);
       }
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'vaccines'));
 
+    const unsubOpdCoverLayout = onSnapshot(doc(db, 'metadata', 'opdCoverLayout'), (snapshot) => {
+      const data = snapshot.exists() ? snapshot.data() : null;
+      setOpdCoverLayout(normalizeOpdCoverLayout(data?.layout));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'metadata/opdCoverLayout'));
+
     return () => {
       unsubPatients();
       unsubVisits();
       unsubVaccines();
+      unsubOpdCoverLayout();
     };
   }, [isAuthReady]);
 
@@ -185,7 +201,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: now.toISOString(),
         updatedAt: now.toISOString()
       };
-      await setDoc(doc(db, 'patients', id), newPatient);
+      await setDoc(doc(db, 'patients', id), removeUndefinedDeep(newPatient));
       return newPatient;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `patients/${id}`);
@@ -195,7 +211,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updatePatient = async (patientId: string, patientData: Partial<Patient>) => {
     try {
-      await updateDoc(doc(db, 'patients', patientId), patientData);
+      await updateDoc(doc(db, 'patients', patientId), removeUndefinedDeep(patientData));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `patients/${patientId}`);
       throw error;
@@ -261,7 +277,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       data: {}
     };
     try {
-      await setDoc(doc(db, 'visits', id), newVisit);
+      await setDoc(doc(db, 'visits', id), removeUndefinedDeep(newVisit));
       return true;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `visits/${id}`);
@@ -273,10 +289,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const visit = visits.find(v => v.id === visitId);
     if (!visit) return;
     try {
-      await updateDoc(doc(db, 'visits', visitId), {
+      await updateDoc(doc(db, 'visits', visitId), removeUndefinedDeep({
         status: newStatus,
         data: { ...visit.data, ...additionalData }
-      });
+      }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `visits/${visitId}`);
       setModalConfig({
@@ -285,12 +301,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         title: 'เกิดข้อผิดพลาด',
         message: 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
       });
+      throw error;
     }
   };
 
   const updateVaccineStock = async (vaccineId: string, newStock: number) => {
     try {
-      await updateDoc(doc(db, 'vaccines', vaccineId), { stock: newStock });
+      await updateDoc(doc(db, 'vaccines', vaccineId), removeUndefinedDeep({ stock: newStock }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `vaccines/${vaccineId}`);
       setModalConfig({
@@ -299,12 +316,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         title: 'เกิดข้อผิดพลาด',
         message: 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
       });
+      throw error;
     }
   };
 
   const addVaccine = async (vaccine: Vaccine) => {
     try {
-      await setDoc(doc(db, 'vaccines', vaccine.id), vaccine);
+      await setDoc(doc(db, 'vaccines', vaccine.id), removeUndefinedDeep(vaccine));
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `vaccines/${vaccine.id}`);
       throw error;
@@ -313,7 +331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateVaccine = async (vaccineId: string, vaccineData: Partial<Vaccine>) => {
     try {
-      await updateDoc(doc(db, 'vaccines', vaccineId), vaccineData);
+      await updateDoc(doc(db, 'vaccines', vaccineId), removeUndefinedDeep(vaccineData));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `vaccines/${vaccineId}`);
       throw error;
@@ -334,7 +352,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const voidVisit = async (visitId: string) => {
     try {
-      await updateDoc(doc(db, 'visits', visitId), { status: 'VOID' });
+      await updateDoc(doc(db, 'visits', visitId), removeUndefinedDeep({ status: 'VOID' }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `visits/${visitId}`);
       throw error;
@@ -355,10 +373,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       // 3. Reset counters
       const counterRef = doc(db, 'metadata', 'counters');
-      const resetCounter = setDoc(counterRef, {
+      const resetCounter = setDoc(counterRef, removeUndefinedDeep({
         lastHnYear: '',
         lastHnSeq: 0
-      }, { merge: true });
+      }), { merge: true });
 
       await Promise.all([...visitDeletes, ...patientDeletes, resetCounter]);
       
@@ -379,14 +397,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateOpdCoverLayout = async (layout: OpdCoverLayout) => {
+    try {
+      await setDoc(doc(db, 'metadata', 'opdCoverLayout'), removeUndefinedDeep({
+        layout: normalizeOpdCoverLayout(layout),
+        updatedAt: new Date().toISOString()
+      }), { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'metadata/opdCoverLayout');
+      throw error;
+    }
+  };
+
+  const resetOpdCoverLayout = async () => {
+    await updateOpdCoverLayout(DEFAULT_OPD_COVER_LAYOUT);
+  };
+
   return (
     <AppContext.Provider value={{
       user, isAuthReady, login, logout,
-      patients, visits, vaccines,
+      patients, visits, vaccines, opdCoverLayout,
       activeVisitId, setActiveVisitId,
       modalConfig, setModalConfig,
       registerPatient, updatePatient, deletePatient, openVisit, updateVisitStatus, updateVaccineStock,
-      addVaccine, updateVaccine, deleteVaccine, voidVisit, resetSystem
+      addVaccine, updateVaccine, deleteVaccine, voidVisit, resetSystem,
+      updateOpdCoverLayout, resetOpdCoverLayout
     }}>
       {children}
     </AppContext.Provider>

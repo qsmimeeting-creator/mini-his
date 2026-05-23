@@ -36,6 +36,28 @@ export interface Patient {
   updatedAt?: string;
 }
 
+export interface ThaiIdCardFormData {
+  citizenId: string;
+  title: string;
+  firstName: string;
+  lastName: string;
+  titleEn?: string;
+  firstNameEn?: string;
+  lastNameEn?: string;
+  birthDate: string;
+  gender: 'male' | 'female' | '';
+  nationality: 'ไทย';
+  addressLine1?: string;
+  subDistrict?: string;
+  district?: string;
+  province?: string;
+  postalCode?: string;
+}
+
+export type ThaiIdCardReadResponse =
+  | { ok: true; data: ThaiIdCardFormData }
+  | { ok: false; code: string; message: string };
+
 export interface Visit {
   id: string;
   vn: string;
@@ -73,6 +95,7 @@ export interface Visit {
     orders?: any[];
     orderedAt?: string;
     orderedBy?: string;
+    postDoctorVerifiedAt?: string;
     
     // Cashier
     paidAt?: string;
@@ -80,11 +103,13 @@ export interface Visit {
     paymentMethod?: string;
     amountPaid?: number;
     totalAmount?: number;
+    paymentRecords?: any[];
     
     // Dispense
     dispensedAt?: string;
     dispensedBy?: string;
     dispensedLots?: string;
+    dispensedItems?: any[];
     
     // Injection
     injectedAt?: string;
@@ -104,6 +129,8 @@ export type VisitStatus =
   | 'SCREENING_IN_PROGRESS' 
   | 'DOCTOR_PENDING' 
   | 'DOCTOR_IN_PROGRESS' 
+  | 'POST_DOCTOR_PENDING'
+  | 'POST_DOCTOR_IN_PROGRESS'
   | 'PAYMENT_PENDING' 
   | 'PAYMENT_IN_PROGRESS' 
   | 'DISPENSE_PENDING' 

@@ -5,6 +5,7 @@ import { QueueTable, QueueTab } from '../components/common/QueueTable';
 import { Visit } from '../types';
 import { CashierModal } from '../components/common/CashierModal';
 import { CheckCircle2, Receipt } from 'lucide-react';
+import { getOrderKey, getUnpaidOrders, isOrderPaid, omitUndefinedFields } from '../utils/orderWorkflow';
 
 export default function Cashier() {
   const { updateVisitStatus, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
@@ -22,15 +23,65 @@ export default function Cashier() {
   }, [activeVisitId, visits, setActiveVisitId]);
 
   const handleCallQueue = async (visit: Visit) => {
-    await updateVisitStatus(visit.id, 'PAYMENT_IN_PROGRESS');
-    setSelectedVisit(visit);
+    try {
+      await updateVisitStatus(visit.id, 'PAYMENT_IN_PROGRESS');
+      setSelectedVisit(visit);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const handlePaymentComplete = async (visit: Visit, paymentData: any) => {
     try {
+      const paidAt = new Date().toISOString();
+      const pendingOrders = getUnpaidOrders(visit);
+      if (pendingOrders.length === 0) {
+        setModalConfig({
+          isOpen: true,
+          type: 'alert',
+          title: 'ไม่มีรายการค้างชำระ',
+          message: 'Visit นี้ไม่มีรายการวัคซีนที่ต้องชำระเพิ่ม'
+        });
+        setSelectedVisit(null);
+        return;
+      }
+
+      const paymentRecordId = `PAY-${Date.now()}`;
+      const pendingOrderIds = new Set(pendingOrders.map((order: any, index: number) => getOrderKey(order, index)));
+      const orders = (visit.data?.orders || []).map((order: any, index: number) => {
+        const orderKey = getOrderKey(order, index);
+        if (pendingOrderIds.has(orderKey)) {
+          return omitUndefinedFields({
+            ...order,
+            orderId: orderKey,
+            paymentStatus: 'paid',
+            paymentRecordId,
+          });
+        }
+        if (isOrderPaid(order, visit)) {
+          return omitUndefinedFields({
+            ...order,
+            orderId: orderKey,
+            paymentStatus: 'paid',
+          });
+        }
+        return omitUndefinedFields(order);
+      });
+      const paymentRecord = {
+        id: paymentRecordId,
+        paidAt,
+        paymentMethod: paymentData.paymentMethod,
+        receivedAmount: paymentData.receivedAmount,
+        change: paymentData.change,
+        totalAmount: paymentData.totalAmount,
+        orderIds: Array.from(pendingOrderIds),
+      };
+
       await updateVisitStatus(visit.id, 'DISPENSE_PENDING', { 
         ...paymentData,
-        paidAt: new Date().toISOString()
+        orders,
+        paymentRecords: [...(visit.data?.paymentRecords || []), paymentRecord],
+        paidAt
       });
       
       setModalConfig({
@@ -50,16 +101,16 @@ export default function Cashier() {
   };
 
   const renderOrderInfo = (v: Visit) => {
-    const orders = v.data?.orders || [];
-    const totalPrice = orders.reduce((sum: number, o: any) => sum + o.price, 0);
+    const orders = getUnpaidOrders(v);
+    const totalPrice = orders.reduce((sum: number, o: any) => sum + (o.price || 0), 0);
     return (
       <div className="flex flex-col">
         <div className="font-medium text-gray-800 text-sm truncate max-w-[200px]">
-          {orders.map((o: any) => o.name).join(', ')}
+          {orders.map((o: any) => o.name).join(', ') || 'ไม่มีรายการค้างชำระ'}
         </div>
         <div className="text-red-600 font-bold mt-1 text-sm flex items-center gap-1">
           <Receipt size={14} />
-          ยอดรวม: ฿{totalPrice.toLocaleString()}
+          ยอดค้างชำระ: ฿{totalPrice.toLocaleString()}
         </div>
       </div>
     );
@@ -85,10 +136,10 @@ export default function Cashier() {
     {
       id: 'completed',
       label: 'คิวที่เสร็จสิ้น',
-      filter: (v) => !!v.data?.paidAt,
+      filter: (v) => !!v.data?.paidAt && v.status !== 'PAYMENT_PENDING' && v.status !== 'PAYMENT_IN_PROGRESS',
       renderExtraColumn: (v) => {
-        const orders = v.data?.orders || [];
-        const totalPrice = orders.reduce((sum: number, o: any) => sum + o.price, 0);
+        const latestPayment = v.data?.paymentRecords?.[v.data.paymentRecords.length - 1];
+        const totalPrice = latestPayment?.totalAmount ?? v.data?.totalAmount ?? 0;
         return (
           <div className="text-xs text-gray-500">
             <div className="flex items-center gap-1 text-emerald-600 font-medium">

@@ -7,12 +7,196 @@ import {
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line
+  PieChart, Pie, Cell
 } from 'recharts';
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay, isValid } from 'date-fns';
+import * as XLSX from 'xlsx';
 import { useAppContext } from '../context/AppContext';
 import { STATUS_LABELS, STATUS_COLORS } from '../constants';
 import { PatientDetailsModal } from '../components/common/PatientDetailsModal';
+import type { Patient, Visit } from '../types';
+
+type ReportRow = Record<string, string | number>;
+
+const dash = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return '-';
+  return String(value);
+};
+
+const formatDateValue = (value?: string) => {
+  if (!value) return '-';
+  try {
+    const date = parseISO(value);
+    return isValid(date) ? format(date, 'yyyy-MM-dd') : value;
+  } catch (error) {
+    return value;
+  }
+};
+
+const formatTimeValue = (value?: string) => {
+  if (!value) return '-';
+  try {
+    const date = parseISO(value);
+    return isValid(date) ? format(date, 'HH:mm:ss') : '-';
+  } catch (error) {
+    return '-';
+  }
+};
+
+const formatDisplayDateTime = (value?: string) => {
+  if (!value) return '-';
+  try {
+    const date = parseISO(value);
+    return isValid(date) ? format(date, 'dd/MM/yyyy HH:mm') : value;
+  } catch (error) {
+    return value;
+  }
+};
+
+const calculateAge = (birthDate?: string) => {
+  if (!birthDate) return '-';
+  try {
+    const birth = parseISO(birthDate);
+    if (!isValid(birth)) return '-';
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age >= 0 ? age.toString() : '-';
+  } catch (error) {
+    return '-';
+  }
+};
+
+const formatGender = (gender?: string) => {
+  if (gender === 'male') return 'ชาย';
+  if (gender === 'female') return 'หญิง';
+  return dash(gender);
+};
+
+const getPatientForVisit = (visit: Visit, patients: Patient[]) =>
+  patients.find(patient => patient.id === visit.patientId);
+
+const getPatientFullName = (patient?: Patient, visit?: Visit) => {
+  if (!patient) return dash(visit?.patientName);
+  return dash(`${patient.title || ''} ${patient.firstName || ''} ${patient.lastName || ''}`.trim() || patient.name);
+};
+
+const getPatientEnglishName = (patient?: Patient) => {
+  if (!patient) return '-';
+  const name = `${patient.titleEn || ''} ${patient.firstNameEn || ''} ${patient.lastNameEn || ''}`.trim();
+  return dash(name);
+};
+
+const getPatientAddress = (patient?: Patient) => {
+  if (!patient) return '-';
+  return dash([
+    patient.addressLine1,
+    patient.subDistrict,
+    patient.district,
+    patient.province,
+    patient.postalCode
+  ].filter(Boolean).join(' '));
+};
+
+const getVisitVaccines = (visit: Visit) => {
+  const injectionRecords = Array.isArray(visit.data?.injectionRecords) ? visit.data.injectionRecords : [];
+  if (injectionRecords.length > 0) return injectionRecords;
+
+  const orders = Array.isArray(visit.data?.orders) ? visit.data.orders : [];
+  if (orders.length > 0) {
+    const lots = (visit.data?.dispensedLots || '').split(',').map((lot: string) => lot.trim()).filter(Boolean);
+    return orders.map((order: any, index: number) => ({
+      vaccineId: order.id,
+      vaccineName: order.name,
+      doseNumber: order.doseNumber,
+      doseLabel: order.doseLabel,
+      lot: lots[index] || lots[0] || '',
+      route: '',
+      site: '',
+      note: ''
+    }));
+  }
+
+  return [{}];
+};
+
+const getVaccineSummary = (visit: Visit) => {
+  const records = getVisitVaccines(visit);
+  const names = records
+    .map((record: any) => record.vaccineName || record.name)
+    .filter(Boolean);
+  return names.length > 0 ? names.join(', ') : '-';
+};
+
+const buildReportRows = (filteredVisits: Visit[], patients: Patient[]): ReportRow[] => {
+  return filteredVisits.flatMap(visit => {
+    const patient = getPatientForVisit(visit, patients);
+    const vaccines = getVisitVaccines(visit);
+
+    return vaccines.map((vaccine: any) => ({
+      VN: dash(visit.vn),
+      'วันที่รับบริการ': formatDateValue(visit.timestamp),
+      'เวลา': formatTimeValue(visit.timestamp),
+      'สถานะ': STATUS_LABELS[visit.status] || visit.status,
+      'จุดบริการ': dash(visit.servicePoint),
+      'ผู้ลงทะเบียน': dash(visit.registeredBy),
+      HN: dash(patient?.hn),
+      'ชื่อ-นามสกุล': getPatientFullName(patient, visit),
+      'ชื่อ-นามสกุล (EN)': getPatientEnglishName(patient),
+      'เลขบัตรประชาชน/Passport': dash(patient?.citizenId || patient?.passportNo),
+      'วันเกิด': formatDateValue(patient?.birthDate),
+      'อายุ': patient?.age?.toString() || calculateAge(patient?.birthDate),
+      'เพศ': formatGender(patient?.gender),
+      'สัญชาติ': dash(patient?.nationality),
+      'โทรศัพท์': dash(patient?.phone),
+      'อีเมล': dash(patient?.email),
+      'ที่อยู่': getPatientAddress(patient),
+      'ชื่อวัคซีน': dash(vaccine.vaccineName || vaccine.name),
+      'เข็มที่': dash(vaccine.doseLabel || vaccine.doseNumber),
+      Lot: dash(vaccine.lot),
+      Route: dash(vaccine.route),
+      Site: dash(vaccine.site),
+      'หมายเหตุการฉีด': dash(vaccine.note),
+      'เวลาฉีด': formatDisplayDateTime(visit.data?.injectedAt),
+      'วันนัดครั้งถัดไป': formatDateValue(visit.data?.nextAppointmentDate),
+      'วัคซีนครั้งถัดไป': dash(visit.data?.nextVaccineName)
+    }));
+  });
+};
+
+const exportToExcel = (rows: ReportRow[], metadata: { startDate: string; endDate: string; visitCount: number }) => {
+  const headers = rows.length > 0 ? Object.keys(rows[0]) : [
+    'VN', 'วันที่รับบริการ', 'เวลา', 'สถานะ', 'จุดบริการ', 'ผู้ลงทะเบียน', 'HN', 'ชื่อ-นามสกุล',
+    'ชื่อ-นามสกุล (EN)', 'เลขบัตรประชาชน/Passport', 'วันเกิด', 'อายุ', 'เพศ', 'สัญชาติ',
+    'โทรศัพท์', 'อีเมล', 'ที่อยู่', 'ชื่อวัคซีน', 'เข็มที่', 'Lot', 'Route', 'Site', 'หมายเหตุการฉีด',
+    'เวลาฉีด', 'วันนัดครั้งถัดไป', 'วัคซีนครั้งถัดไป'
+  ];
+
+  const sheetData = [
+    ['รายงานผู้รับบริการและประวัติการรับวัคซีน'],
+    [`ช่วงวันที่: ${metadata.startDate} ถึง ${metadata.endDate}`],
+    [`วันที่ดาวน์โหลด: ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}`],
+    [`จำนวน Visit: ${metadata.visitCount} | จำนวนแถวรายงาน: ${rows.length}`],
+    [],
+    headers,
+    ...rows.map(row => headers.map(header => row[header] ?? '-'))
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+  worksheet['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(headers.length - 1, 0) } }
+  ];
+  worksheet['!cols'] = headers.map(header => ({
+    wch: Math.min(Math.max(header.length + 6, 14), header === 'ที่อยู่' ? 48 : 28)
+  }));
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'รายงานผู้รับบริการ');
+  XLSX.writeFile(workbook, `report_${metadata.startDate}_to_${metadata.endDate}.xlsx`);
+};
 
 export default function DataManagement() {
   const { visits, patients, resetSystem, setModalConfig } = useAppContext();
@@ -24,6 +208,7 @@ export default function DataManagement() {
   // Filtered data
   const filteredVisits = useMemo(() => {
     return visits.filter(visit => {
+      const patient = getPatientForVisit(visit, patients);
       let visitDate;
       try {
         visitDate = parseISO(visit.timestamp);
@@ -39,11 +224,16 @@ export default function DataManagement() {
 
       const matchesSearch = 
         visit.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        visit.vn.toLowerCase().includes(searchTerm.toLowerCase());
+        visit.vn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (patient?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (patient?.hn || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (patient?.citizenId || '').includes(searchTerm) ||
+        (patient?.passportNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (patient?.phone || '').replace(/\D/g, '').includes(searchTerm.replace(/\D/g, ''));
 
       return isWithinDate && matchesSearch;
     });
-  }, [visits, startDate, endDate, searchTerm]);
+  }, [visits, patients, startDate, endDate, searchTerm]);
 
   // Stats
   const stats = useMemo(() => {
@@ -88,41 +278,14 @@ export default function DataManagement() {
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-  // Export CSV
-  const exportToCSV = () => {
-    const headers = ['VN', 'Patient Name', 'Status', 'Date', 'Time'];
-    const rows = filteredVisits.map(v => {
-      try {
-        const date = parseISO(v.timestamp);
-        if (isValid(date)) {
-          return [
-            v.vn,
-            v.patientName,
-            STATUS_LABELS[v.status] || v.status,
-            format(date, 'yyyy-MM-dd'),
-            format(date, 'HH:mm:ss')
-          ];
-        }
-      } catch (e) {
-        // Fallback
-      }
-      return [v.vn, v.patientName, STATUS_LABELS[v.status] || v.status, v.timestamp, ''];
+  const reportRows = useMemo(() => buildReportRows(filteredVisits, patients), [filteredVisits, patients]);
+
+  const handleExportToExcel = () => {
+    exportToExcel(reportRows, {
+      startDate,
+      endDate,
+      visitCount: filteredVisits.length
     });
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `report_${startDate}_to_${endDate}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   return (
@@ -133,11 +296,11 @@ export default function DataManagement() {
           <p className="text-gray-500">ตรวจสอบข้อมูล กรองรายงาน และดาวน์โหลดข้อมูลสรุปผล</p>
         </div>
         <button 
-          onClick={exportToCSV}
+          onClick={handleExportToExcel}
           className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm font-medium"
         >
           <Download size={18} />
-          ดาวน์โหลดรายงาน (CSV)
+          ดาวน์โหลดรายงาน (Excel)
         </button>
       </div>
 
@@ -173,12 +336,12 @@ export default function DataManagement() {
             </div>
           </div>
           <div className="md:col-span-2 space-y-1">
-            <label className="text-xs font-bold text-gray-400 uppercase">ค้นหารายชื่อ / VN</label>
+            <label className="text-xs font-bold text-gray-400 uppercase">ค้นหารายชื่อ / VN / HN / เลขบัตร / โทรศัพท์</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input 
                 type="text" 
-                placeholder="ค้นหาชื่อผู้ป่วย หรือเลข VN..."
+                placeholder="ค้นหาชื่อ, VN, HN, เลขบัตร, เบอร์โทร..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
@@ -297,7 +460,11 @@ export default function DataManagement() {
             <thead className="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-4">VN</th>
+                <th className="px-6 py-4">HN</th>
                 <th className="px-6 py-4">ชื่อ-นามสกุล</th>
+                <th className="px-6 py-4">เลขบัตร/Passport</th>
+                <th className="px-6 py-4">โทรศัพท์</th>
+                <th className="px-6 py-4">วัคซีน</th>
                 <th className="px-6 py-4">วันเวลาที่รับบริการ</th>
                 <th className="px-6 py-4">สถานะ</th>
                 <th className="px-6 py-4 text-right">การจัดการ</th>
@@ -305,39 +472,37 @@ export default function DataManagement() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredVisits.length > 0 ? (
-                filteredVisits.map((visit) => (
-                  <tr key={visit.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-mono text-sm font-bold text-blue-600">{visit.vn}</td>
-                    <td className="px-6 py-4 font-medium">{visit.patientName}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {(() => {
-                        try {
-                          const date = parseISO(visit.timestamp);
-                          return isValid(date) ? format(date, 'dd/MM/yyyy HH:mm') : visit.timestamp;
-                        } catch (e) {
-                          return visit.timestamp;
-                        }
-                      })()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${STATUS_COLORS[visit.status]}`}>
-                        {STATUS_LABELS[visit.status] || visit.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => setSelectedPatientId(visit.patientId)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                        title="ดูรายละเอียดผู้ป่วย"
-                      >
-                        <Eye size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                filteredVisits.map((visit) => {
+                  const patient = getPatientForVisit(visit, patients);
+                  return (
+                    <tr key={visit.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 font-mono text-sm font-bold text-blue-600">{visit.vn}</td>
+                      <td className="px-6 py-4 font-mono text-sm text-gray-600">{patient?.hn || '-'}</td>
+                      <td className="px-6 py-4 font-medium min-w-[180px]">{getPatientFullName(patient, visit)}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 font-mono">{patient?.citizenId || patient?.passportNo || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{patient?.phone || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 min-w-[220px]">{getVaccineSummary(visit)}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{formatDisplayDateTime(visit.timestamp)}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border whitespace-nowrap ${STATUS_COLORS[visit.status]}`}>
+                          {STATUS_LABELS[visit.status] || visit.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button 
+                          onClick={() => setSelectedPatientId(visit.patientId)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                          title="ดูรายละเอียดผู้ป่วย"
+                        >
+                          <Eye size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400">
                     ไม่พบข้อมูลในช่วงเวลาที่เลือก
                   </td>
                 </tr>

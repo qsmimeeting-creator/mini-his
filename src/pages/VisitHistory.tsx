@@ -1,30 +1,35 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, History, Edit2, RotateCcw, CheckCircle, XCircle, User, Calendar, Clock, ArrowRight, Activity, Stethoscope } from 'lucide-react';
+import { Search, History, Edit2, RotateCcw, CheckCircle, XCircle, User, Calendar, Clock, ArrowRight, Activity, Stethoscope, Syringe } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { Visit, VisitStatus } from '../types';
 import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { SectionTitle } from '../components/common/SectionTitle';
+import { formatDoseNumber, getCompletedInjectionRecords } from '../utils/orderWorkflow';
+import { VaccineHistoryTable } from '../components/common/VaccineHistoryTable';
 
 const STATUS_LABELS: Record<VisitStatus, { label: string, color: string, step: number }> = {
   'SCREENING_PENDING': { label: 'รอคัดกรอง', color: 'bg-blue-100 text-blue-700', step: 1 },
   'SCREENING_IN_PROGRESS': { label: 'กำลังคัดกรอง', color: 'bg-blue-50 text-blue-600', step: 1 },
   'DOCTOR_PENDING': { label: 'รอพบแพทย์', color: 'bg-indigo-100 text-indigo-700', step: 2 },
   'DOCTOR_IN_PROGRESS': { label: 'กำลังพบแพทย์', color: 'bg-indigo-50 text-indigo-600', step: 2 },
-  'PAYMENT_PENDING': { label: 'รอชำระเงิน', color: 'bg-amber-100 text-amber-700', step: 3 },
-  'PAYMENT_IN_PROGRESS': { label: 'กำลังชำระเงิน', color: 'bg-amber-50 text-amber-600', step: 3 },
-  'DISPENSE_PENDING': { label: 'รอจ่ายยา', color: 'bg-emerald-100 text-emerald-700', step: 4 },
-  'DISPENSE_IN_PROGRESS': { label: 'กำลังจ่ายยา', color: 'bg-emerald-50 text-emerald-600', step: 4 },
-  'INJECTION_PENDING': { label: 'รอฉีดยา', color: 'bg-cyan-100 text-cyan-700', step: 5 },
-  'INJECTION_IN_PROGRESS': { label: 'กำลังฉีดยา', color: 'bg-cyan-50 text-cyan-600', step: 5 },
-  'COMPLETED': { label: 'เสร็จสิ้น', color: 'bg-green-100 text-green-700', step: 6 },
+  'POST_DOCTOR_PENDING': { label: 'รอพยาบาลหลังพบแพทย์', color: 'bg-violet-100 text-violet-700', step: 3 },
+  'POST_DOCTOR_IN_PROGRESS': { label: 'กำลังตรวจสอบโดยพยาบาล', color: 'bg-violet-50 text-violet-600', step: 3 },
+  'PAYMENT_PENDING': { label: 'รอชำระเงิน', color: 'bg-amber-100 text-amber-700', step: 4 },
+  'PAYMENT_IN_PROGRESS': { label: 'กำลังชำระเงิน', color: 'bg-amber-50 text-amber-600', step: 4 },
+  'DISPENSE_PENDING': { label: 'รอจ่ายยา', color: 'bg-emerald-100 text-emerald-700', step: 5 },
+  'DISPENSE_IN_PROGRESS': { label: 'กำลังจ่ายยา', color: 'bg-emerald-50 text-emerald-600', step: 5 },
+  'INJECTION_PENDING': { label: 'รอฉีดยา', color: 'bg-cyan-100 text-cyan-700', step: 6 },
+  'INJECTION_IN_PROGRESS': { label: 'กำลังฉีดยา', color: 'bg-cyan-50 text-cyan-600', step: 6 },
+  'COMPLETED': { label: 'เสร็จสิ้น', color: 'bg-green-100 text-green-700', step: 7 },
   'VOID': { label: 'ยกเลิก', color: 'bg-red-100 text-red-700', step: 0 }
 };
 
 const STEPS = [
   { id: 'SCREENING_PENDING', label: 'จุดคัดกรอง', path: '/screening' },
   { id: 'DOCTOR_PENDING', label: 'ห้องตรวจแพทย์', path: '/doctor' },
+  { id: 'POST_DOCTOR_PENDING', label: 'พยาบาลหลังพบแพทย์', path: '/post-doctor' },
   { id: 'PAYMENT_PENDING', label: 'การเงิน', path: '/cashier' },
   { id: 'DISPENSE_PENDING', label: 'ห้องจ่ายยา', path: '/dispense' },
   { id: 'INJECTION_PENDING', label: 'ห้องฉีดยา', path: '/injection' },
@@ -88,6 +93,55 @@ export default function VisitHistory() {
     } catch (e) {
       return isoString;
     }
+  };
+
+  const renderCompletedVaccines = (visit: Visit) => {
+    const completedVaccines = getCompletedInjectionRecords(visit);
+    const completedVaccineRecords = completedVaccines.map((record: any) => ({
+      ...record,
+      visitDate: visit.data?.injectedAt || visit.timestamp,
+      vn: visit.vn,
+    }));
+    return (
+      <section className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100">
+        <h4 className="text-sm font-bold text-emerald-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Syringe size={16} />
+          วัคซีนที่ฉีดสำเร็จแล้ว
+        </h4>
+        <VaccineHistoryTable records={completedVaccineRecords} />
+        <div className="hidden">
+        {completedVaccines.length === 0 ? (
+          <div className="text-sm text-emerald-700 bg-white border border-emerald-100 rounded-xl px-4 py-3">
+            ยังไม่มีประวัติการฉีดวัคซีนสำเร็จ
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {completedVaccines.map((record: any, index: number) => (
+              <div key={record.orderId || `${record.vaccineId}-${index}`} className="bg-white border border-emerald-100 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg shrink-0">
+                    <Syringe size={16} />
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-bold text-gray-900">{record.vaccineName || record.name || '-'}</p>
+                    {(record.doseNumber || record.doseLabel) && (
+                      <p className="text-[11px] text-blue-600 font-medium">{formatDoseNumber(record.doseNumber, record.doseLabel)}</p>
+                    )}
+                    <p className="text-[11px] text-gray-500">Lot: {record.lot || '-'}</p>
+                    {(record.route || record.site) && (
+                      <p className="text-[11px] text-emerald-700 font-medium">{record.route || '-'} | {record.site || '-'}</p>
+                    )}
+                    {record.note && <p className="text-[11px] text-gray-500">{record.note}</p>}
+                    {visit.data?.injectedAt && <p className="text-[10px] text-gray-400">เวลาฉีด: {formatDateTime(visit.data.injectedAt)}</p>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        </div>
+      </section>
+    );
   };
 
   return (
@@ -298,6 +352,8 @@ export default function VisitHistory() {
                   </div>
                 </div>
               </div>
+
+              {renderCompletedVaccines(selectedVisit)}
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">

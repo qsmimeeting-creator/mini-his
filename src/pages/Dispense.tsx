@@ -5,6 +5,7 @@ import { SectionTitle } from '../components/common/SectionTitle';
 import { QueueTable, QueueTab } from '../components/common/QueueTable';
 import { Visit } from '../types';
 import { DispenseModal } from '../components/common/DispenseModal';
+import { getOrderKey, omitUndefinedFields } from '../utils/orderWorkflow';
 
 export default function Dispense() {
   const { vaccines, updateVisitStatus, updateVaccineStock, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
@@ -22,23 +23,41 @@ export default function Dispense() {
   }, [activeVisitId, visits, setActiveVisitId]);
 
   const handleCallQueue = async (visit: Visit) => {
-    await updateVisitStatus(visit.id, 'DISPENSE_IN_PROGRESS');
-    setSelectedVisit(visit);
+    try {
+      await updateVisitStatus(visit.id, 'DISPENSE_IN_PROGRESS');
+      setSelectedVisit(visit);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const handleDispenseConfirm = async (visit: Visit, dispenseData: any) => {
     try {
-      const orders = visit.data?.orders || [];
+      const dispensedOrderIds = new Set((dispenseData.items || []).map((item: any) => item.orderId || item.id));
+      const orders = (visit.data?.orders || []).map((order: any, index: number) => {
+        const orderKey = getOrderKey(order, index);
+        if (!dispensedOrderIds.has(orderKey)) return omitUndefinedFields(order);
+        return omitUndefinedFields({
+          ...order,
+          orderId: orderKey,
+          dispenseStatus: 'dispensed',
+        });
+      });
       
       // Update stock for each vaccine
-      orders.forEach((o: any) => {
+      await Promise.all((dispenseData.items || []).map((o: any) => {
         const v = vaccines.find(vac => vac.id === o.id);
         if (v) {
-          updateVaccineStock(v.id, v.stock - 1);
+          return updateVaccineStock(v.id, v.stock - 1);
         }
-      });
+        return Promise.resolve();
+      }));
 
-      await updateVisitStatus(visit.id, 'INJECTION_PENDING', dispenseData);
+      await updateVisitStatus(visit.id, 'INJECTION_PENDING', {
+        ...dispenseData,
+        orders,
+        dispensedItems: [...(visit.data?.dispensedItems || []), ...(dispenseData.items || [])],
+      });
       
       setModalConfig({
         isOpen: true,

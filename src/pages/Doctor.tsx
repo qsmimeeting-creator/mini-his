@@ -5,6 +5,7 @@ import { QueueTable, QueueTab } from '../components/common/QueueTable';
 import { Visit } from '../types';
 import { Activity, Thermometer, Heart, Weight, Scale, CheckCircle2 } from 'lucide-react';
 import { DoctorOrderModal } from '../components/common/DoctorOrderModal';
+import { OrderDraft, buildUnpaidOrder, formatDoseNumber, getPaidOrders, isOrderPaid, normalizePaidOrder } from '../utils/orderWorkflow';
 
 export default function Doctor() {
   const { vaccines, updateVisitStatus, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
@@ -25,8 +26,12 @@ export default function Doctor() {
   }, [activeVisitId, visits, setActiveVisitId]);
 
   const handleCallQueue = async (visit: Visit) => {
-    await updateVisitStatus(visit.id, 'DOCTOR_IN_PROGRESS');
-    openOrderModal(visit);
+    try {
+      await updateVisitStatus(visit.id, 'DOCTOR_IN_PROGRESS');
+      openOrderModal(visit);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const openOrderModal = (visit: Visit) => {
@@ -34,19 +39,41 @@ export default function Doctor() {
     setIsModalOpen(true);
   };
 
-  const handleConfirmOrder = async (selectedVaccineIds: string[], additionalData: { doctorNote: string, diagnosis: string }) => {
-    if (!selectedVisit || selectedVaccineIds.length === 0) return;
+  const handleConfirmOrder = async (selectedOrders: OrderDraft[], additionalData: { doctorNote: string, diagnosis: string }) => {
+    if (!selectedVisit) return;
 
-    const orders = selectedVaccineIds.map(id => vaccines.find(v => v.id === id)).filter(Boolean);
+    const orderedAt = new Date().toISOString();
+    const existingOrders = selectedVisit.data?.orders || [];
+    const paidOrders = getPaidOrders(selectedVisit).map((order: any, index: number) =>
+      normalizePaidOrder(order, selectedVisit, index)
+    );
+    const editableOrders = selectedOrders
+      .map((draft, index) => {
+        const vaccine = vaccines.find(v => v.id === draft.id);
+        if (!vaccine) return null;
+        const existingOrder = existingOrders.find((order: any) => order.id === draft.id && !isOrderPaid(order, selectedVisit));
+        return buildUnpaidOrder(vaccine, draft, existingOrder, orderedAt, index);
+      })
+      .filter(Boolean);
+    const orders = [...paidOrders, ...editableOrders];
+    if (editableOrders.length === 0) {
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'ยังไม่มีรายการวัคซีน',
+        message: 'กรุณาเลือกวัคซีนและเข็มที่ฉีดก่อนส่งต่อไปยังขั้นตอนถัดไป'
+      });
+      return;
+    }
     
     try {
       await updateVisitStatus(selectedVisit.id, 'POST_DOCTOR_PENDING', { 
         orders, 
         ...additionalData,
-        orderedAt: new Date().toISOString() 
+        orderedAt
       });
       
-      const totalAmount = orders.reduce((sum, o) => sum + (o?.price || 0), 0);
+      const totalAmount = editableOrders.reduce((sum, o) => sum + (o?.price || 0), 0);
       
       setModalConfig({
         isOpen: true,
@@ -59,23 +86,28 @@ export default function Doctor() {
               <div className="text-xs font-bold text-gray-500 uppercase border-b border-gray-200 pb-2 mb-2">รายการวัคซีนที่สั่งจ่าย</div>
               {orders.map((o, idx) => (
                 <div key={idx} className="flex justify-between items-start text-sm">
-                  <span className="font-medium text-gray-800">{o?.name}</span>
+                  <div>
+                    <span className="font-medium text-gray-800">{o?.name}</span>
+                    <div className="text-[10px] text-gray-500">
+                      {formatDoseNumber(o?.doseNumber, o?.doseLabel) || 'ไม่ระบุเลขเข็ม'}
+                      {isOrderPaid(o, selectedVisit) ? ' • ชำระแล้ว' : ''}
+                    </div>
+                  </div>
                   <span className="text-blue-600 font-bold whitespace-nowrap ml-4">฿{o?.price.toLocaleString()}</span>
                 </div>
               ))}
               <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-200">
-                <span className="font-bold text-gray-900">ยอดรวมทั้งสิ้น</span>
+                <span className="font-bold text-gray-900">ยอดค้างชำระรอบนี้</span>
                 <span className="font-bold text-lg text-emerald-600">฿{totalAmount.toLocaleString()}</span>
               </div>
             </div>
           </div>
         )
       });
-    } catch (error) {
-      console.error(error);
-    } finally {
       setIsModalOpen(false);
       setSelectedVisit(null);
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -142,6 +174,7 @@ export default function Doctor() {
       {isModalOpen && selectedVisit && (
         <DoctorOrderModal 
           visit={selectedVisit}
+          visits={visits}
           onClose={() => setIsModalOpen(false)}
           onConfirm={handleConfirmOrder}
         />
