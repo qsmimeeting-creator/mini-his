@@ -8,7 +8,7 @@ import { DispenseModal } from '../components/common/DispenseModal';
 import { getOrderKey, getOrderQuantity, omitUndefinedFields } from '../utils/orderWorkflow';
 
 export default function Dispense() {
-  const { vaccines, updateVisitStatus, updateVaccineStock, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
+  const { dispenseVisitWithStock, updateVisitStatus, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
 
   // Handle active visit from navigation
@@ -45,20 +45,7 @@ export default function Dispense() {
         });
       });
       
-      // Update stock for each vaccine
-      await Promise.all((dispenseData.items || []).map((o: any) => {
-        const v = vaccines.find(vac => vac.id === o.id);
-        if (v) {
-          return updateVaccineStock(v.id, v.stock - getOrderQuantity(o));
-        }
-        return Promise.resolve();
-      }));
-
-      await updateVisitStatus(visit.id, 'INJECTION_PENDING', {
-        ...dispenseData,
-        orders,
-        dispensedItems: [...(visit.data?.dispensedItems || []), ...(dispenseData.items || [])],
-      });
+      await dispenseVisitWithStock(visit.id, dispenseData, orders);
       
       setModalConfig({
         isOpen: true,

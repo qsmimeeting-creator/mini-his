@@ -44,6 +44,10 @@ The reader service runs on `http://127.0.0.1:32123` and the web app calls:
 
 `http://127.0.0.1:32123/api/thai-id-card/read`
 
+Health check:
+
+`http://127.0.0.1:32123/api/health`
+
 The default `start.bat` already allows:
 
 `https://mini-his.vercel.app`
@@ -62,3 +66,26 @@ For a different local reader URL, build the web app with:
 $env:VITE_THAI_ID_CARD_READER_URL="http://127.0.0.1:32123/api/thai-id-card/read"
 npm run build
 ```
+
+## Maintenance Checklist
+
+Before deploying:
+
+```powershell
+npm.cmd run lint
+npm.cmd run build
+```
+
+Recommended daily checks:
+
+- Confirm the web app version shown in Data Management matches the deployed build.
+- Confirm each reader computer returns `ok: true` and the expected version from `/api/health`.
+- Export Audit Log from Data Management when reviewing deleted patients, voided visits, stock edits, dose edits, OPD layout changes, or system reset events.
+- Use the date/status/vaccine filters in Data Management before exporting Excel reports.
+
+Operational notes:
+
+- Dispensing updates visit status and vaccine stock in one Firestore transaction, so the visit should not move to injection if stock cannot be reduced.
+- Keep Firebase Security Rules restrictive in production. UI-level buttons are convenience controls, not a replacement for server-side rules.
+- `firestore.rules.example` contains a role-based starter policy using custom claims (`admin`, `register`, `nurse`, `doctor`, `cashier`, `stock`); review it before deploying rules to avoid blocking current users.
+- Back up Firestore before using Factory Reset or bulk corrections.

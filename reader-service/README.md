@@ -1,5 +1,7 @@
 # Mini HIS Thai ID Card Reader Service
 
+Version: `1.0.1`
+
 ชุดนี้ใช้สำหรับคอมพิวเตอร์ที่ต้องอ่านบัตรประชาชนไทยให้เว็บ Mini HIS ที่เปิดจาก Vercel:
 
 `https://mini-his.vercel.app`

@@ -124,6 +124,73 @@ export interface Visit {
   };
 }
 
+export type DoseLabel = 'เข็มกระตุ้น' | 'ไม่ระบุเข็ม';
+export type PaymentStatus = 'unpaid' | 'paid';
+export type DispenseStatus = 'pending' | 'dispensed';
+
+export interface VaccineOrder {
+  id: string;
+  orderId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  doseNumber?: 1 | 2 | 3;
+  doseLabel?: DoseLabel | string;
+  paymentStatus?: PaymentStatus;
+  paymentRecordId?: string;
+  dispenseStatus?: DispenseStatus;
+  orderedAt?: string;
+  lot?: string;
+  genericName?: string;
+  unit?: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  paidAt: string;
+  paymentMethod: string;
+  receivedAmount: number;
+  change: number;
+  totalAmount: number;
+  orderIds: string[];
+}
+
+export interface DispensedItem {
+  orderId: string;
+  id: string;
+  name: string;
+  lot: string;
+  quantity: number;
+  doseNumber?: 1 | 2 | 3;
+  doseLabel?: DoseLabel | string;
+}
+
+export interface InjectionRecord {
+  orderId?: string;
+  vaccineId: string;
+  vaccineName: string;
+  quantity?: number;
+  doseNumber?: 1 | 2 | 3;
+  doseLabel?: DoseLabel | string;
+  lot: string;
+  route: string;
+  site: string;
+  note?: string;
+  injectedAt?: string;
+}
+
+export interface AuditLogEntry {
+  id?: string;
+  action: string;
+  targetType: 'patient' | 'visit' | 'vaccine' | 'system' | 'opdCoverLayout';
+  targetId: string;
+  actorId?: string;
+  actorName?: string;
+  actorEmail?: string;
+  createdAt: string;
+  details?: Record<string, any>;
+}
+
 export type VisitStatus = 
   | 'SCREENING_PENDING' 
   | 'SCREENING_IN_PROGRESS' 

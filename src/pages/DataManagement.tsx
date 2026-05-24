@@ -10,7 +10,8 @@ import { useAppContext } from '../context/AppContext';
 import { STATUS_LABELS, STATUS_COLORS } from '../constants';
 import { PatientDetailsModal } from '../components/common/PatientDetailsModal';
 import { getOrderQuantity } from '../utils/orderWorkflow';
-import type { Patient, Visit } from '../types';
+import { MINI_HIS_APP_VERSION } from '../utils/version';
+import type { AuditLogEntry, Patient, Visit } from '../types';
 
 type ReportRow = Record<string, string | number>;
 
@@ -196,12 +197,45 @@ const exportToExcel = (rows: ReportRow[], metadata: { startDate: string; endDate
   XLSX.writeFile(workbook, `report_${metadata.startDate}_to_${metadata.endDate}.xlsx`);
 };
 
+const exportAuditLogsToExcel = (logs: AuditLogEntry[]) => {
+  const rows = logs
+    .slice()
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .map(log => ({
+      'วันที่เวลา': formatDisplayDateTime(log.createdAt),
+      Action: log.action,
+      'ประเภทข้อมูล': log.targetType,
+      'รหัสข้อมูล': log.targetId,
+      'ผู้ใช้งาน': log.actorName || log.actorEmail || '-',
+      Email: log.actorEmail || '-',
+      'รายละเอียด': JSON.stringify(log.details || {})
+    }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = [
+    { wch: 20 }, { wch: 28 }, { wch: 16 }, { wch: 24 }, { wch: 24 }, { wch: 28 }, { wch: 60 }
+  ];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Audit Log');
+  XLSX.writeFile(workbook, `audit_logs_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`);
+};
+
 export default function DataManagement() {
-  const { visits, patients, resetSystem, setModalConfig } = useAppContext();
+  const { visits, patients, auditLogs, resetSystem, setModalConfig } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [vaccineFilter, setVaccineFilter] = useState('all');
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+
+  const vaccineOptions = useMemo(() => {
+    const names = visits
+      .flatMap(visit => getVisitVaccines(visit))
+      .map((vaccine: any) => vaccine.vaccineName || vaccine.name)
+      .filter(Boolean);
+    return Array.from(new Set(names)).sort();
+  }, [visits]);
 
   // Filtered data
   const filteredVisits = useMemo(() => {
@@ -228,10 +262,13 @@ export default function DataManagement() {
         (patient?.citizenId || '').includes(searchTerm) ||
         (patient?.passportNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (patient?.phone || '').replace(/\D/g, '').includes(searchTerm.replace(/\D/g, ''));
+      const matchesStatus = statusFilter === 'all' || visit.status === statusFilter;
+      const matchesVaccine = vaccineFilter === 'all' || getVisitVaccines(visit)
+        .some((vaccine: any) => (vaccine.vaccineName || vaccine.name) === vaccineFilter);
 
-      return isWithinDate && matchesSearch;
+      return isWithinDate && matchesSearch && matchesStatus && matchesVaccine;
     });
-  }, [visits, patients, startDate, endDate, searchTerm]);
+  }, [visits, patients, startDate, endDate, searchTerm, statusFilter, vaccineFilter]);
 
   // Stats
   const stats = useMemo(() => {
@@ -259,14 +296,24 @@ export default function DataManagement() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">จัดการข้อมูลและรายงาน</h1>
           <p className="text-gray-500">ตรวจสอบข้อมูล กรองรายงาน และดาวน์โหลดข้อมูลสรุปผล</p>
+          <p className="text-xs text-gray-400 mt-1">Mini HIS version {MINI_HIS_APP_VERSION}</p>
         </div>
-        <button 
-          onClick={handleExportToExcel}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm font-medium"
-        >
-          <Download size={18} />
-          ดาวน์โหลดรายงาน (Excel)
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button 
+            onClick={handleExportToExcel}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm font-medium"
+          >
+            <Download size={18} />
+            ดาวน์โหลดรายงาน (Excel)
+          </button>
+          <button
+            onClick={() => exportAuditLogsToExcel(auditLogs)}
+            className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg transition-colors shadow-sm font-medium"
+          >
+            <Download size={18} />
+            Audit Log
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -275,7 +322,7 @@ export default function DataManagement() {
           <Filter size={18} className="text-blue-600" />
           ตัวกรองข้อมูล
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div className="space-y-1">
             <label className="text-xs font-bold text-gray-400 uppercase">วันที่เริ่มต้น</label>
             <div className="relative">
@@ -312,6 +359,32 @@ export default function DataManagement() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-400 uppercase">สถานะ</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            >
+              <option value="all">ทุกสถานะ</option>
+              {Object.entries(STATUS_LABELS).map(([status, label]) => (
+                <option key={status} value={status}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-400 uppercase">วัคซีน</label>
+            <select
+              value={vaccineFilter}
+              onChange={(e) => setVaccineFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            >
+              <option value="all">ทุกวัคซีน</option>
+              {vaccineOptions.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
@@ -452,10 +525,22 @@ export default function DataManagement() {
             onClick={() => {
               setModalConfig({
                 isOpen: true,
-                type: 'confirm',
+                type: 'prompt',
                 title: 'ยืนยันการล้างข้อมูลทั้งหมด',
-                message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลผู้ป่วยและประวัติทั้งหมด? การกระทำนี้ไม่สามารถกู้คืนได้',
-                onConfirm: resetSystem
+                message: 'การล้างข้อมูลไม่สามารถกู้คืนได้ หากต้องการดำเนินการต่อให้พิมพ์ RESET',
+                defaultValue: '',
+                onConfirm: (value) => {
+                  if ((value || '').trim() === 'RESET') {
+                    void resetSystem();
+                    return;
+                  }
+                  setModalConfig({
+                    isOpen: true,
+                    type: 'alert',
+                    title: 'ยกเลิกการล้างข้อมูล',
+                    message: 'ข้อความยืนยันไม่ถูกต้อง ระบบยังไม่ลบข้อมูลใด ๆ'
+                  });
+                }
               });
             }}
             className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg transition-colors shadow-sm font-bold text-sm"

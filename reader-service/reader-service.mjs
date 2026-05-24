@@ -5,6 +5,7 @@ import { searchAddressBySubDistrict } from "thai-address-universal";
 
 const PORT = Number(process.env.THAI_ID_CARD_READER_PORT || 32123);
 const HOST = "127.0.0.1";
+const SERVICE_VERSION = "1.0.1";
 const WORKER_PATH = fileURLToPath(new URL("./thaiIdCardReaderWorker.cjs", import.meta.url));
 const HEALTH_URL = `http://${HOST}:${PORT}/api/health`;
 
@@ -209,6 +210,7 @@ app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
     service: "thai-id-card-reader",
+    version: SERVICE_VERSION,
     host: HOST,
     port: PORT,
     allowedOrigins: allAllowedOrigins
@@ -271,7 +273,7 @@ const handleListenError = async (error) => {
 };
 
 const server = app.listen(PORT, HOST, () => {
-  console.log(`Thai ID card reader service running on http://${HOST}:${PORT}`);
+  console.log(`Thai ID card reader service v${SERVICE_VERSION} running on http://${HOST}:${PORT}`);
   console.log(`Allowed origins: ${allAllowedOrigins.join(", ") || "(none)"}`);
 });
 

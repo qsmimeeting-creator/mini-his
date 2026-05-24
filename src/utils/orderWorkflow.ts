@@ -1,8 +1,10 @@
-import { Visit, Vaccine } from '../types';
+import { Visit, Vaccine, VaccineOrder } from '../types';
 import { removeUndefinedDeep } from './firestoreData';
 
 export type PaymentStatus = 'unpaid' | 'paid';
 export type DispenseStatus = 'pending' | 'dispensed';
+export const NUMERIC_DOSE_OPTIONS = [1, 2, 3] as const;
+export const SPECIAL_DOSE_LABELS = ['เข็มกระตุ้น', 'ไม่ระบุเข็ม'] as const;
 
 export type OrderDraft = {
   id: string;
@@ -31,6 +33,53 @@ export const getOrderQuantity = (order: any) => {
 
 export const getOrderLineTotal = (order: any) =>
   (Number(order?.price) || 0) * getOrderQuantity(order);
+
+export const normalizeOrderPrice = (value: unknown) => {
+  const price = Number(value);
+  return Number.isFinite(price) && price >= 0 ? price : 0;
+};
+
+export const validateOrderData = (order: any) => {
+  const rawQuantity = order?.quantity === undefined || order?.quantity === null || order?.quantity === ''
+    ? 1
+    : Number(order.quantity);
+  const rawPrice = order?.price === undefined || order?.price === null || order?.price === ''
+    ? 0
+    : Number(order.price);
+  const doseNumber = order?.doseNumber === undefined || order?.doseNumber === null || order?.doseNumber === ''
+    ? undefined
+    : Number(order.doseNumber);
+  const doseLabel = order?.doseLabel ? String(order.doseLabel) : '';
+
+  if (!order?.id) throw new Error('ORDER_INVALID_ID');
+  if (!Number.isFinite(rawQuantity) || rawQuantity < 1) throw new Error('ORDER_INVALID_QUANTITY');
+  if (!Number.isFinite(rawPrice) || rawPrice < 0) throw new Error('ORDER_INVALID_PRICE');
+  if (doseNumber !== undefined && !NUMERIC_DOSE_OPTIONS.includes(doseNumber as any)) {
+    throw new Error('ORDER_INVALID_DOSE_NUMBER');
+  }
+  if (doseLabel && !SPECIAL_DOSE_LABELS.includes(doseLabel as any)) {
+    throw new Error('ORDER_INVALID_DOSE_LABEL');
+  }
+
+  return {
+    quantity: Math.floor(rawQuantity),
+    price: rawPrice,
+    ...(doseNumber !== undefined ? { doseNumber: doseNumber as 1 | 2 | 3 } : {}),
+    ...(doseLabel ? { doseLabel } : {}),
+  };
+};
+
+export const normalizeOrderForWrite = (order: any) => {
+  const normalized = validateOrderData(order);
+  const { doseNumber, doseLabel, quantity, price, ...rest } = order;
+  return omitUndefinedFields({
+    ...rest,
+    price: normalized.price,
+    quantity: normalized.quantity,
+    ...(normalized.doseNumber !== undefined ? { doseNumber: normalized.doseNumber } : {}),
+    ...(normalized.doseLabel ? { doseLabel: normalized.doseLabel } : {}),
+  }) as Partial<VaccineOrder>;
+};
 
 export const getDoseSelectionValue = (item: any) => {
   if (item?.doseLabel) {
@@ -196,7 +245,7 @@ export const buildUnpaidOrder = (
   existingOrder: any | undefined,
   orderedAt: string,
   index: number
-) => omitUndefinedFields({
+) => normalizeOrderForWrite({
   ...vaccine,
   ...existingOrder,
   ...vaccine,

@@ -12,6 +12,7 @@ import { formatThaiPhone } from '../../utils/formatters';
 const THAI_ID_CARD_READER_URL =
   ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_THAI_ID_CARD_READER_URL ||
     'http://127.0.0.1:32123/api/thai-id-card/read').trim();
+const THAI_ID_CARD_READER_HEALTH_URL = THAI_ID_CARD_READER_URL.replace(/\/api\/thai-id-card\/read$/, '/api/health');
 
 interface RegistrationFormProps {
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => Promise<void>;
@@ -37,6 +38,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [isChecking, setIsChecking] = React.useState(false);
   const [cardReadStatus, setCardReadStatus] = React.useState<'idle' | 'reading' | 'success' | 'error'>('idle');
   const [cardReadMessage, setCardReadMessage] = React.useState('');
+  const [isCheckingReader, setIsCheckingReader] = React.useState(false);
   const [birthDate, setBirthDate] = React.useState({ day: '', month: '', year: '' });
   const [age, setAge] = React.useState('');
   const [era, setEra] = React.useState<'BE' | 'AD'>('BE');
@@ -269,6 +271,34 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
   };
 
+  const handleCheckReaderHealth = async () => {
+    if (isCheckingReader || cardReadStatus === 'reading') return;
+
+    setIsCheckingReader(true);
+    setCardReadStatus('idle');
+    setCardReadMessage('กำลังตรวจสถานะโปรแกรมอ่านบัตร...');
+
+    try {
+      const response = await fetch(THAI_ID_CARD_READER_HEALTH_URL, { method: 'GET' });
+      const payload = await response.json().catch(() => null) as { ok?: boolean; service?: string; version?: string } | null;
+
+      if (!response.ok || payload?.ok !== true || payload?.service !== 'thai-id-card-reader') {
+        throw new Error('โปรแกรมอ่านบัตรตอบกลับไม่ถูกต้อง');
+      }
+
+      setCardReadStatus('success');
+      setCardReadMessage(`โปรแกรมอ่านบัตรพร้อมใช้งาน${payload.version ? ` (v${payload.version})` : ''}`);
+    } catch (error) {
+      setCardReadStatus('error');
+      const message = error instanceof Error && error.message !== 'Failed to fetch'
+        ? error.message
+        : 'ยังไม่ได้เปิดโปรแกรมอ่านบัตรบนเครื่องนี้ กรุณาเปิด reader-service/start.bat หรือใช้ check.bat เพื่อตรวจสอบ';
+      setCardReadMessage(message);
+    } finally {
+      setIsCheckingReader(false);
+    }
+  };
+
   const handleCheck = async () => {
     if (!idValue) {
       setErrors(prev => ({ ...prev, [isForeigner ? 'passport' : 'cid']: `กรุณาระบุ${isForeigner ? ' Passport No.' : 'เลขประจำตัวประชาชน'}` }));
@@ -403,6 +433,15 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               >
                 {cardReadStatus === 'reading' ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
                 {cardReadStatus === 'reading' ? 'กำลังอ่านบัตร' : 'อ่านบัตรประชาชน'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCheckReaderHealth}
+                disabled={isCheckingReader || cardReadStatus === 'reading'}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-all hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isCheckingReader ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                ตรวจสถานะ
               </button>
               {cardReadMessage && (
                 <div className={`inline-flex items-center gap-1.5 text-xs font-bold ${

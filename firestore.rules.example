@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return request.auth.token.role;
+    }
+
+    function hasAnyRole(roles) {
+      return signedIn() && role() in roles;
+    }
+
+    match /auditLogs/{auditLogId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+
+    match /patients/{patientId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['admin', 'register', 'nurse']);
+      allow delete: if hasAnyRole(['admin']);
+    }
+
+    match /visits/{visitId} {
+      allow read: if signedIn();
+      allow create: if hasAnyRole(['admin', 'register']);
+      allow update: if hasAnyRole(['admin', 'nurse', 'doctor', 'cashier', 'stock']);
+      allow delete: if false;
+    }
+
+    match /vaccines/{vaccineId} {
+      allow read: if signedIn();
+      allow create, update, delete: if hasAnyRole(['admin', 'stock']);
+    }
+
+    match /metadata/{documentId} {
+      allow read: if signedIn();
+      allow write: if hasAnyRole(['admin']);
+    }
+  }
+}
