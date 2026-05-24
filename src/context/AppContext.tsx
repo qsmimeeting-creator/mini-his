@@ -10,6 +10,7 @@ import {
   normalizeOpdCoverLayout,
   type OpdCoverLayout
 } from '../utils/opdCoverLayout';
+import { getLocalDateKey } from '../utils/visitDate';
 
 interface ModalConfig {
   isOpen: boolean;
@@ -230,12 +231,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const openVisit = async (patient: Patient) => {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayKey = getLocalDateKey(now);
     
     // Check if patient already has a visit today (excluding VOID)
     const existingVisit = visits.find(v => 
       v.patientId === patient.id && 
-      v.timestamp.startsWith(todayStr) && 
+      getLocalDateKey(v.timestamp) === todayKey &&
       v.status !== 'VOID'
     );
 
@@ -260,7 +261,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const timestamp = now.toISOString();
     
     // Calculate next VN sequence for today
-    const todayVisits = visits.filter(v => v.timestamp.startsWith(todayStr));
+    const todayVisits = visits.filter(v => getLocalDateKey(v.timestamp) === todayKey);
     const nextVnSeq = todayVisits.length + 1;
     const vn = `VN-${String(nextVnSeq).padStart(5, '0')}`;
 

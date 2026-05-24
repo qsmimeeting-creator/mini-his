@@ -6,6 +6,7 @@ import { Visit } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { StatusBadge } from './StatusBadge';
 import { PatientDetailsModal } from './PatientDetailsModal';
+import { isVisitToday } from '../../utils/visitDate';
 
 export interface QueueTab {
   id: string;
@@ -27,6 +28,7 @@ export const QueueTable = ({ title, tabs }: {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0];
+  const todayVisits = visits.filter(v => isVisitToday(v.timestamp));
   
   const handleVoid = (visit: Visit) => {
     setModalConfig({
@@ -55,7 +57,7 @@ export const QueueTable = ({ title, tabs }: {
     });
   };
 
-  const filteredVisits = visits.filter(v => {
+  const filteredVisits = todayVisits.filter(v => {
     const matchesTab = activeTab.filter(v);
     if (!matchesTab) return false;
     
@@ -107,7 +109,7 @@ export const QueueTable = ({ title, tabs }: {
       {/* Tabs */}
       <div className="flex border-b border-gray-200 bg-gray-50/50 overflow-x-auto">
         {tabs.map(tab => {
-          const count = visits.filter(tab.filter).length;
+          const count = todayVisits.filter(tab.filter).length;
           const isActive = activeTabId === tab.id;
           return (
             <button

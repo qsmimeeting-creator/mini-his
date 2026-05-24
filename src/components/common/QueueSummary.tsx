@@ -1,6 +1,7 @@
 import React from 'react';
 import { Users } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
+import { isVisitToday } from '../../utils/visitDate';
 
 export const QueueSummary = () => {
   const { visits } = useAppContext();
@@ -16,7 +17,7 @@ export const QueueSummary = () => {
   ];
 
   const getCount = (statuses: string[]) => {
-    return visits.filter(v => statuses.includes(v.status)).length;
+    return visits.filter(v => isVisitToday(v.timestamp) && statuses.includes(v.status)).length;
   };
 
   return (

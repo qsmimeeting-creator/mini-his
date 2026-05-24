@@ -4,6 +4,7 @@ import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
 import { OrderDraft, formatDoseNumber, getPaidOrders, getUnpaidOrders } from '../../utils/orderWorkflow';
+import { getLocalDateKey } from '../../utils/visitDate';
 
 interface DoctorOrderModalProps {
   visit: Visit;
@@ -40,10 +41,10 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
 
   const patient = patients.find(p => p.id === visit.patientId);
   const paidVaccineIds = new Set(paidOrders.map((order: any) => order.id));
-  const today = visit.timestamp.split('T')[0];
+  const visitDateKey = getLocalDateKey(visit.timestamp);
   const orderedTodayVaccineIds = new Set(
     visits
-      .filter(v => v.patientId === visit.patientId && v.status !== 'VOID' && v.timestamp.startsWith(today))
+      .filter(v => v.patientId === visit.patientId && v.status !== 'VOID' && getLocalDateKey(v.timestamp) === visitDateKey)
       .flatMap(v => v.data?.orders || [])
       .map((order: any) => order.id)
       .filter(Boolean)
