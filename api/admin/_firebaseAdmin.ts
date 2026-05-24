@@ -1,7 +1,6 @@
 import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
 import type { UserRole, UserRoleProfile } from '../../src/types';
 import { normalizeRoles } from '../../src/utils/permissions';
 
@@ -10,6 +9,8 @@ type ApiRequest = {
 };
 
 const VALID_ROLES: UserRole[] = ['admin', 'register', 'nurse', 'doctor', 'cashier', 'stock', 'report'];
+const DEFAULT_FIREBASE_PROJECT_ID = 'gen-lang-client-0797723893';
+const DEFAULT_FIRESTORE_DATABASE_ID = 'ai-studio-77f96820-f2f6-47dc-be85-ff5a5b58b155';
 
 const getHeader = (req: ApiRequest, name: string) => {
   const found = Object.entries(req.headers || {}).find(([key]) => key.toLowerCase() === name.toLowerCase());
@@ -27,7 +28,7 @@ const getServiceAccount = () => {
     return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
   }
 
-  const projectId = process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId;
+  const projectId = process.env.FIREBASE_PROJECT_ID || DEFAULT_FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = getPrivateKey();
 
@@ -42,14 +43,14 @@ const getAdminApp = (): App => {
   if (getApps().length > 0) return getApps()[0]!;
   return initializeApp({
     credential: cert(getServiceAccount()),
-    projectId: process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId,
+    projectId: process.env.FIREBASE_PROJECT_ID || DEFAULT_FIREBASE_PROJECT_ID,
   });
 };
 
 export const adminAuth = () => getAuth(getAdminApp());
 
 export const adminDb = () => {
-  const databaseId = process.env.FIREBASE_FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)';
+  const databaseId = process.env.FIREBASE_FIRESTORE_DATABASE_ID || DEFAULT_FIRESTORE_DATABASE_ID;
   return (getFirestore as any)(getAdminApp(), databaseId);
 };
 
