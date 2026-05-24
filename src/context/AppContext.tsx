@@ -41,7 +41,6 @@ interface AppContextType {
   isAuthReady: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
-  bootstrapAdmin: () => Promise<void>;
   changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   userRole: UserRoleProfile | null;
   userRoles: UserRole[];
@@ -345,14 +344,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const email = usernameSnapshot.data().email;
     if (!email) throw new Error('บัญชีนี้ยังไม่มี Email สำหรับเข้าสู่ระบบ');
     await signInWithEmailAndPassword(auth, email, password);
-  };
-
-  const bootstrapAdmin = async () => {
-    const response = await fetch('/api/admin/bootstrap', { method: 'POST' });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.ok === false) {
-      throw new Error(data.message || 'ไม่สามารถสร้าง Admin เริ่มต้นได้');
-    }
   };
 
   const changeOwnPassword = async (currentPassword: string, newPassword: string) => {
@@ -745,7 +736,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      user, isAuthReady, login, logout, bootstrapAdmin, changeOwnPassword,
+      user, isAuthReady, login, logout, changeOwnPassword,
       userRole, userRoles, userProfiles, isRoleReady, hasRole, canAccessRoute, canPerformAction, requireAction,
       patients, visits, vaccines, auditLogs, opdCoverLayout,
       activeVisitId, setActiveVisitId,
