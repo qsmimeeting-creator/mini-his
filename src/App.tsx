@@ -76,7 +76,7 @@ const AccessDenied = ({ user, logout }: { user: any; logout: () => void }) => (
 );
 
 const LoginScreen = () => {
-  const { login, bootstrapAdmin, setModalConfig } = useAppContext();
+  const { login, setModalConfig } = useAppContext();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,18 +92,6 @@ const LoginScreen = () => {
       await login(username, password);
     } catch (error) {
       showAlert('เข้าสู่ระบบไม่สำเร็จ', error instanceof Error ? error.message : 'กรุณาตรวจสอบ Username/Password');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleBootstrap = async () => {
-    setIsSubmitting(true);
-    try {
-      await bootstrapAdmin();
-      showAlert('สร้าง Admin เริ่มต้นสำเร็จ', 'เข้าสู่ระบบด้วย Username: Admin และ Password: Clinic จากนั้นระบบจะบังคับให้เปลี่ยนรหัสผ่าน');
-    } catch (error) {
-      showAlert('ไม่สามารถสร้าง Admin เริ่มต้นได้', error instanceof Error ? error.message : 'เกิดข้อผิดพลาด');
     } finally {
       setIsSubmitting(false);
     }
@@ -132,11 +120,6 @@ const LoginScreen = () => {
           <LogIn size={18} />
           {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
         </button>
-        <button type="button" disabled={isSubmitting} onClick={handleBootstrap} className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-gray-100 text-gray-700 font-bold px-5 py-3 hover:bg-gray-200 disabled:opacity-50">
-          <UserCog size={18} />
-          สร้าง Admin เริ่มต้น
-        </button>
-        <p className="text-xs text-gray-500 text-center">ใช้ครั้งแรกเท่านั้น: Admin / Clinic</p>
       </form>
     </div>
   );
