@@ -2,7 +2,6 @@ import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { UserRole, UserRoleProfile } from '../../src/types';
-import { normalizeRoles } from '../../src/utils/permissions';
 
 type ApiRequest = {
   headers?: Record<string, string | string[] | undefined>;
@@ -11,6 +10,12 @@ type ApiRequest = {
 const VALID_ROLES: UserRole[] = ['admin', 'register', 'nurse', 'doctor', 'cashier', 'stock', 'report'];
 const DEFAULT_FIREBASE_PROJECT_ID = 'gen-lang-client-0797723893';
 const DEFAULT_FIRESTORE_DATABASE_ID = 'ai-studio-77f96820-f2f6-47dc-be85-ff5a5b58b155';
+const normalizeRoles = (roles: unknown): UserRole[] => {
+  if (!Array.isArray(roles)) return [];
+  return roles.filter((role): role is UserRole =>
+    VALID_ROLES.includes(String(role) as UserRole)
+  );
+};
 
 const getHeader = (req: ApiRequest, name: string) => {
   const found = Object.entries(req.headers || {}).find(([key]) => key.toLowerCase() === name.toLowerCase());
