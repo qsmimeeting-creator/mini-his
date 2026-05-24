@@ -1,5 +1,4 @@
 import path from "path";
-import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import { PDFDocument, rgb, type PDFFont } from "pdf-lib";
@@ -12,20 +11,14 @@ import {
 } from "../utils/opdCoverLayout";
 import type { Patient } from "../types";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
-
 const OPD_TEMPLATE_CANDIDATES = [
   path.join(process.cwd(), "public", "templates", "OPDtemplate.pdf"),
-  path.join(process.cwd(), "dist", "templates", "OPDtemplate.pdf"),
-  path.join(PROJECT_ROOT, "public", "templates", "OPDtemplate.pdf")
+  path.join(process.cwd(), "dist", "templates", "OPDtemplate.pdf")
 ];
 
 const THAI_REGULAR_FONT_CANDIDATES = [
   path.join(process.cwd(), "public", "fonts", "Sarabun-Regular.ttf"),
   path.join(process.cwd(), "dist", "fonts", "Sarabun-Regular.ttf"),
-  path.join(PROJECT_ROOT, "public", "fonts", "Sarabun-Regular.ttf"),
   "C:\\Windows\\Fonts\\tahoma.ttf",
   "C:\\Windows\\Fonts\\THSarabunNew.ttf"
 ];
@@ -33,7 +26,6 @@ const THAI_REGULAR_FONT_CANDIDATES = [
 const THAI_BOLD_FONT_CANDIDATES = [
   path.join(process.cwd(), "public", "fonts", "Sarabun-Bold.ttf"),
   path.join(process.cwd(), "dist", "fonts", "Sarabun-Bold.ttf"),
-  path.join(PROJECT_ROOT, "public", "fonts", "Sarabun-Bold.ttf"),
   "C:\\Windows\\Fonts\\tahomabd.ttf",
   "C:\\Windows\\Fonts\\THSarabunNew Bold.ttf"
 ];
