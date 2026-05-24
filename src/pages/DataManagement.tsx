@@ -2,13 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { 
   Download, Search, Filter, Calendar, 
   TrendingUp, Users, CheckCircle, XCircle,
-  FileSpreadsheet, BarChart3, PieChart as PieChartIcon,
-  Eye, Settings, AlertTriangle, Trash2
+  FileSpreadsheet, Eye, Settings, AlertTriangle, Trash2
 } from 'lucide-react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell
-} from 'recharts';
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay, isValid } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { useAppContext } from '../context/AppContext';
@@ -245,39 +240,6 @@ export default function DataManagement() {
     return { total, completed, voided, inProgress };
   }, [filteredVisits]);
 
-  // Chart Data: Visits by day
-  const chartData = useMemo(() => {
-    const dailyData: Record<string, number> = {};
-    filteredVisits.forEach(v => {
-      try {
-        const dateObj = parseISO(v.timestamp);
-        if (isValid(dateObj)) {
-          const date = format(dateObj, 'dd/MM');
-          dailyData[date] = (dailyData[date] || 0) + 1;
-        }
-      } catch (e) {
-        // Skip invalid dates
-      }
-    });
-
-    return Object.entries(dailyData)
-      .map(([date, count]) => ({ date, count }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }, [filteredVisits]);
-
-  // Chart Data: Status distribution
-  const pieData = useMemo(() => {
-    const statusCounts: Record<string, number> = {};
-    filteredVisits.forEach(v => {
-      const label = STATUS_LABELS[v.status] || v.status;
-      statusCounts[label] = (statusCounts[label] || 0) + 1;
-    });
-
-    return Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
-  }, [filteredVisits]);
-
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
   const reportRows = useMemo(() => buildReportRows(filteredVisits, patients), [filteredVisits, patients]);
 
   const handleExportToExcel = () => {
@@ -392,55 +354,6 @@ export default function DataManagement() {
           </div>
           <div className="text-2xl font-bold text-red-600">{stats.voided}</div>
           <div className="text-xs text-gray-400 mt-1">รายการที่ถูก Void</div>
-        </div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <div className="flex items-center gap-2 mb-6 text-gray-800 font-bold">
-            <BarChart3 size={20} className="text-blue-600" />
-            สถิติผู้รับบริการรายวัน
-          </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} name="จำนวนผู้ป่วย" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <div className="flex items-center gap-2 mb-6 text-gray-800 font-bold">
-            <PieChartIcon size={20} className="text-indigo-600" />
-            สัดส่วนสถานะการรับบริการ
-          </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
         </div>
       </div>
 
