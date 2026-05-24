@@ -10,6 +10,7 @@ import { OpdCoverSettings } from '../components/registration/OpdCoverSettings';
 import { EditPatientModal } from '../components/registration/EditPatientModal';
 import { OpenVisitModal } from '../components/common/OpenVisitModal';
 import { getOpdCoverLayoutSignature } from '../utils/opdCoverLayout';
+import { buildOpdCoverPdfClient } from '../utils/opdCoverPdfClient';
 import { buildPatientStickerPdf } from '../utils/patientStickerPdf';
 import type { OpdCoverLayout } from '../utils/opdCoverLayout';
 
@@ -261,34 +262,39 @@ export default function Registration() {
       return;
     }
 
-    printWindow.document.write('<p style="font-family: sans-serif; padding: 24px;">กำลังสร้างหน้าปก OPD...</p>');
+    printWindow.document.write('<p style="font-family: Sarabun, Tahoma, sans-serif; padding: 24px;">กำลังสร้างหน้าปก OPD...</p>');
     printWindow.document.close();
 
     try {
-      const response = await fetch('/api/opd-cover/print', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ patient, layout })
-      });
+      let pdfBlob: Blob | null = null;
 
-      if (!response.ok) {
-        let message = 'ไม่สามารถสร้างไฟล์หน้าปก OPD ได้';
-        try {
-          const payload = await response.json();
-          message = payload.message || message;
-        } catch {
-          // Use default message when the response is not JSON.
+      try {
+        const response = await fetch('/api/opd-cover/print', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ patient, layout })
+        });
+
+        if (!response.ok) {
+          throw new Error('OPD API ยังไม่พร้อมใช้งาน');
         }
-        throw new Error(message);
+
+        const responseLayoutSignature = response.headers.get('X-OPD-Cover-Layout-Signature');
+        const responseLayoutSource = response.headers.get('X-OPD-Cover-Layout-Source');
+        if (responseLayoutSource !== 'request' || responseLayoutSignature !== expectedLayoutSignature) {
+          throw new Error('OPD API ยังไม่ได้ใช้ค่าปรับล่าสุด');
+        }
+
+        pdfBlob = await response.blob();
+      } catch (apiError) {
+        console.warn('Falling back to client-side OPD PDF generation:', apiError);
+        const clientPdf = await buildOpdCoverPdfClient(patient, layout);
+        if (clientPdf.layoutSignature !== expectedLayoutSignature) {
+          throw new Error('ไม่สามารถใช้ค่าตั้งค่าหน้าปก OPD ล่าสุดได้');
+        }
+        pdfBlob = new Blob([clientPdf.bytes], { type: 'application/pdf' });
       }
 
-      const responseLayoutSignature = response.headers.get('X-OPD-Cover-Layout-Signature');
-      const responseLayoutSource = response.headers.get('X-OPD-Cover-Layout-Source');
-      if (responseLayoutSource !== 'request' || responseLayoutSignature !== expectedLayoutSignature) {
-        throw new Error('API สร้างหน้าปก OPD ยังไม่ได้ใช้ค่าปรับล่าสุด กรุณา restart server ด้วยคำสั่ง npm.cmd run dev แล้วลองอีกครั้ง');
-      }
-
-      const pdfBlob = await response.blob();
       const pdfUrl = URL.createObjectURL(pdfBlob);
       printWindow.location.href = pdfUrl;
       if (shouldPrint) {
@@ -312,7 +318,6 @@ export default function Registration() {
       });
     }
   };
-
   const handlePrintOpdCover = async (patient: Patient) => {
     await openOpdCoverPdf(patient, opdCoverLayout, true);
   };
