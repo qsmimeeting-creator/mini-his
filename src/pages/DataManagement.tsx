@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import { useAppContext } from '../context/AppContext';
 import { STATUS_LABELS, STATUS_COLORS } from '../constants';
 import { PatientDetailsModal } from '../components/common/PatientDetailsModal';
+import { getOrderQuantity } from '../utils/orderWorkflow';
 import type { Patient, Visit } from '../types';
 
 type ReportRow = Record<string, string | number>;
@@ -108,6 +109,7 @@ const getVisitVaccines = (visit: Visit) => {
       vaccineName: order.name,
       doseNumber: order.doseNumber,
       doseLabel: order.doseLabel,
+      quantity: getOrderQuantity(order),
       lot: lots[index] || lots[0] || '',
       route: '',
       site: '',
@@ -151,6 +153,7 @@ const buildReportRows = (filteredVisits: Visit[], patients: Patient[]): ReportRo
       'ที่อยู่': getPatientAddress(patient),
       'ชื่อวัคซีน': dash(vaccine.vaccineName || vaccine.name),
       'เข็มที่': dash(vaccine.doseLabel || vaccine.doseNumber),
+      'จำนวน dose': dash(vaccine.quantity || 1),
       Lot: dash(vaccine.lot),
       Route: dash(vaccine.route),
       Site: dash(vaccine.site),
@@ -166,7 +169,7 @@ const exportToExcel = (rows: ReportRow[], metadata: { startDate: string; endDate
   const headers = rows.length > 0 ? Object.keys(rows[0]) : [
     'VN', 'วันที่รับบริการ', 'เวลา', 'สถานะ', 'จุดบริการ', 'ผู้ลงทะเบียน', 'HN', 'ชื่อ-นามสกุล',
     'ชื่อ-นามสกุล (EN)', 'เลขบัตรประชาชน/Passport', 'วันเกิด', 'อายุ', 'เพศ', 'สัญชาติ',
-    'โทรศัพท์', 'อีเมล', 'ที่อยู่', 'ชื่อวัคซีน', 'เข็มที่', 'Lot', 'Route', 'Site', 'หมายเหตุการฉีด',
+    'โทรศัพท์', 'อีเมล', 'ที่อยู่', 'ชื่อวัคซีน', 'เข็มที่', 'จำนวน dose', 'Lot', 'Route', 'Site', 'หมายเหตุการฉีด',
     'เวลาฉีด', 'วันนัดครั้งถัดไป', 'วัคซีนครั้งถัดไป'
   ];
 

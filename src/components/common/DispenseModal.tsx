@@ -3,7 +3,7 @@ import { X, Package, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
-import { formatDoseNumber, getOrderKey, getPendingDispenseOrders, omitUndefinedFields } from '../../utils/orderWorkflow';
+import { formatDoseNumber, getOrderKey, getOrderQuantity, getPendingDispenseOrders, omitUndefinedFields } from '../../utils/orderWorkflow';
 
 interface DispenseModalProps {
   visit: Visit;
@@ -19,12 +19,14 @@ export const DispenseModal: React.FC<DispenseModalProps> = ({ visit, onClose, on
 
   const dispenseItems = orders.map((order: any) => {
     const vaccine = vaccines.find(v => v.id === order.id);
+    const quantity = getOrderQuantity(order);
     return {
       ...order,
+      quantity,
       stock: vaccine?.stock || 0,
       lot: vaccine?.lot || '-',
       expiryDate: vaccine?.expiryDate || '-',
-      isOutOfStock: !vaccine || vaccine.stock <= 0
+      isOutOfStock: !vaccine || vaccine.stock < quantity
     };
   });
 
@@ -41,6 +43,7 @@ export const DispenseModal: React.FC<DispenseModalProps> = ({ visit, onClose, on
         id: i.id,
         name: i.name,
         lot: i.lot,
+        quantity: getOrderQuantity(i),
         ...(i.doseNumber !== undefined ? { doseNumber: i.doseNumber } : {}),
         ...(i.doseLabel ? { doseLabel: i.doseLabel } : {})
       }))
@@ -87,6 +90,7 @@ export const DispenseModal: React.FC<DispenseModalProps> = ({ visit, onClose, on
                         <div className="font-medium text-gray-900">{item.name}</div>
                         <div className="text-[10px] text-gray-500 uppercase">{item.genericName || 'N/A'}</div>
                         {(item.doseNumber || item.doseLabel) && <div className="text-[10px] text-blue-600">{formatDoseNumber(item.doseNumber, item.doseLabel)}</div>}
+                        <div className="text-[10px] text-gray-500">{getOrderQuantity(item)} dose</div>
                       </td>
                       <td className="px-4 py-4 text-center font-mono text-blue-600 font-bold">{item.lot}</td>
                       <td className="px-4 py-4 text-center text-gray-600">{item.expiryDate}</td>

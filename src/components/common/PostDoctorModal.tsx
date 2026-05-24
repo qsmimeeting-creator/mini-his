@@ -3,7 +3,7 @@ import { X, CheckCircle2, ClipboardList, AlertCircle } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
-import { formatDoseNumber, getUnpaidOrders, isOrderPaid } from '../../utils/orderWorkflow';
+import { formatDoseNumber, getOrderLineTotal, getOrderQuantity, getUnpaidOrders, isOrderPaid } from '../../utils/orderWorkflow';
 
 interface PostDoctorModalProps {
   visit: Visit;
@@ -16,7 +16,7 @@ export const PostDoctorModal: React.FC<PostDoctorModalProps> = ({ visit, onClose
   const patient = patients.find(p => p.id === visit.patientId);
   const orders = visit.data?.orders || [];
   const unpaidOrders = getUnpaidOrders(visit);
-  const unpaidTotal = unpaidOrders.reduce((sum: number, order: any) => sum + (order.price || 0), 0);
+  const unpaidTotal = unpaidOrders.reduce((sum: number, order: any) => sum + getOrderLineTotal(order), 0);
   const nextStatus: VisitStatus = 'PAYMENT_PENDING';
 
   return (
@@ -57,10 +57,11 @@ export const PostDoctorModal: React.FC<PostDoctorModalProps> = ({ visit, onClose
                           <div>{order.name}</div>
                           <div className="text-[10px] text-gray-500">
                             {formatDoseNumber(order.doseNumber, order.doseLabel) || 'ไม่ระบุเลขเข็ม'}
+                            {` • ${getOrderQuantity(order)} dose`}
                             {isOrderPaid(order, visit) ? ' • ชำระแล้ว' : ' • ค้างชำระ'}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right text-blue-600 font-bold">฿{(order.price || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right text-blue-600 font-bold">฿{getOrderLineTotal(order).toLocaleString()}</td>
                       </tr>
                     ))}
                     {orders.length === 0 && (

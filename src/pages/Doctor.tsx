@@ -5,7 +5,7 @@ import { QueueTable, QueueTab } from '../components/common/QueueTable';
 import { Visit } from '../types';
 import { Activity, Thermometer, Heart, Weight, Scale, CheckCircle2 } from 'lucide-react';
 import { DoctorOrderModal } from '../components/common/DoctorOrderModal';
-import { OrderDraft, buildUnpaidOrder, formatDoseNumber, getPaidOrders, isOrderPaid, normalizePaidOrder } from '../utils/orderWorkflow';
+import { OrderDraft, buildUnpaidOrder, formatDoseNumber, getOrderLineTotal, getOrderQuantity, getPaidOrders, isOrderPaid, normalizePaidOrder } from '../utils/orderWorkflow';
 
 export default function Doctor() {
   const { vaccines, updateVisitStatus, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
@@ -73,7 +73,7 @@ export default function Doctor() {
         orderedAt
       });
       
-      const totalAmount = editableOrders.reduce((sum, o) => sum + (o?.price || 0), 0);
+      const totalAmount = editableOrders.reduce((sum, o) => sum + getOrderLineTotal(o), 0);
       
       setModalConfig({
         isOpen: true,
@@ -90,10 +90,11 @@ export default function Doctor() {
                     <span className="font-medium text-gray-800">{o?.name}</span>
                     <div className="text-[10px] text-gray-500">
                       {formatDoseNumber(o?.doseNumber, o?.doseLabel) || 'ไม่ระบุเลขเข็ม'}
+                      {` • ${getOrderQuantity(o)} dose`}
                       {isOrderPaid(o, selectedVisit) ? ' • ชำระแล้ว' : ''}
                     </div>
                   </div>
-                  <span className="text-blue-600 font-bold whitespace-nowrap ml-4">฿{o?.price.toLocaleString()}</span>
+                  <span className="text-blue-600 font-bold whitespace-nowrap ml-4">฿{getOrderLineTotal(o).toLocaleString()}</span>
                 </div>
               ))}
               <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-200">

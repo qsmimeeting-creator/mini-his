@@ -3,8 +3,7 @@ import { X, Activity, Thermometer, Heart, Scale, CheckCircle2, ClipboardList, Al
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
-import { OrderDraft, formatDoseNumber, getPaidOrders, getUnpaidOrders } from '../../utils/orderWorkflow';
-import { getLocalDateKey } from '../../utils/visitDate';
+import { OrderDraft, formatDoseNumber, getDoseSelectionValue, getNumericDoseValue, getOrderLineTotal, getOrderQuantity, getPaidOrders, getUnpaidOrders } from '../../utils/orderWorkflow';
 
 interface DoctorOrderModalProps {
   visit: Visit;
@@ -19,17 +18,18 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
   const { vaccines, patients } = useAppContext();
   const paidOrders = getPaidOrders(visit);
   const editableExistingOrders = getUnpaidOrders(visit);
-  const editableExistingIds = new Set(editableExistingOrders.map((order: any) => order.id).filter(Boolean));
   const [selectedVaccines, setSelectedVaccines] = useState<string[]>(() =>
     editableExistingOrders.map((order: any) => order.id).filter(Boolean)
   );
   const [doseNumbers, setDoseNumbers] = useState<Record<string, string>>(() => {
     return editableExistingOrders.reduce((acc: Record<string, string>, order: any) => {
-      if (order.id && (order.doseLabel || order.doseNumber)) {
-        acc[order.id] = order.doseLabel?.startsWith('เข็มที่ ')
-          ? order.doseLabel.replace('เข็มที่ ', '')
-          : order.doseLabel || String(order.doseNumber);
-      }
+      if (order.id) acc[order.id] = getDoseSelectionValue(order);
+      return acc;
+    }, {});
+  });
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => {
+    return editableExistingOrders.reduce((acc: Record<string, number>, order: any) => {
+      if (order.id) acc[order.id] = getOrderQuantity(order);
       return acc;
     }, {});
   });
@@ -41,14 +41,16 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
 
   const patient = patients.find(p => p.id === visit.patientId);
   const paidVaccineIds = new Set(paidOrders.map((order: any) => order.id));
-  const visitDateKey = getLocalDateKey(visit.timestamp);
-  const orderedTodayVaccineIds = new Set(
-    visits
-      .filter(v => v.patientId === visit.patientId && v.status !== 'VOID' && getLocalDateKey(v.timestamp) === visitDateKey)
-      .flatMap(v => v.data?.orders || [])
-      .map((order: any) => order.id)
-      .filter(Boolean)
-  );
+  const usedNumericDosesByVaccine = visits
+    .filter(v => v.patientId === visit.patientId && v.status !== 'VOID')
+    .flatMap(v => v.data?.orders || [])
+    .reduce((acc: Map<string, Set<string>>, order: any) => {
+      const dose = getNumericDoseValue(order);
+      if (!order?.id || !dose) return acc;
+      if (!acc.has(order.id)) acc.set(order.id, new Set());
+      acc.get(order.id)!.add(dose);
+      return acc;
+    }, new Map<string, Set<string>>());
   const vaccineTypes = Array.from(new Set(vaccines.map(v => v.type))).filter(Boolean);
 
   const filteredVaccines = vaccines.filter(vac => {
@@ -61,12 +63,15 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
   const selectedEditableVaccines = selectedVaccines
     .map(id => vaccines.find(v => v.id === id))
     .filter(Boolean);
-  const editableTotal = selectedEditableVaccines.reduce((sum, vac) => sum + (vac?.price || 0), 0);
+  const editableTotal = selectedEditableVaccines.reduce((sum, vac) => {
+    if (!vac) return sum;
+    return sum + getOrderLineTotal({ ...vac, quantity: quantities[vac.id] || 1 });
+  }, 0);
   const hasCompleteDoseSelection = selectedVaccines.every(id => Boolean(doseNumbers[id]));
-  const canSubmit = selectedVaccines.length > 0 && hasCompleteDoseSelection;
+  const hasValidQuantities = selectedVaccines.every(id => (quantities[id] || 1) >= 1);
+  const canSubmit = selectedVaccines.length > 0 && hasCompleteDoseSelection && hasValidQuantities;
 
   const toggleVaccine = (id: string) => {
-    if (orderedTodayVaccineIds.has(id) && !editableExistingIds.has(id)) return;
     setSelectedVaccines(prev => {
       const isSelected = prev.includes(id);
       if (isSelected) {
@@ -75,14 +80,32 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
           delete next[id];
           return next;
         });
+        setQuantities(current => {
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
         return prev.filter(v => v !== id);
       }
+      setQuantities(current => ({ ...current, [id]: current[id] || 1 }));
       return [...prev, id];
     });
   };
 
   const handleDoseChange = (id: string, value: string) => {
     setDoseNumbers(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleQuantityChange = (id: string, value: string) => {
+    const quantity = Math.max(1, Math.floor(Number(value) || 1));
+    setQuantities(prev => ({ ...prev, [id]: quantity }));
+  };
+
+  const isDoseOptionDisabled = (vaccineId: string, option: string) => {
+    if (!/^\d+$/.test(option)) return false;
+    const existingOrder = editableExistingOrders.find((order: any) => order.id === vaccineId);
+    const currentDose = getDoseSelectionValue(existingOrder);
+    return Boolean(usedNumericDosesByVaccine.get(vaccineId)?.has(option) && option !== currentDose);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -95,6 +118,7 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
         id,
         ...(isNumericDose ? { doseNumber: Number(selectedDose) } : {}),
         ...(!isNumericDose ? { doseLabel: selectedDose } : {}),
+        quantity: quantities[id] || 1,
       };
     });
     onConfirm(selectedOrders, { doctorNote, diagnosis }, nextStatus);
@@ -208,7 +232,8 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
                                 <span className="text-[10px] text-gray-500">{vac.genericName || 'N/A'}</span>
                               </div>
                               <div className="flex flex-col items-end gap-1">
-                                <span className="font-bold text-blue-600">฿{vac.price.toLocaleString()}</span>
+                                <span className="font-bold text-blue-600">฿{getOrderLineTotal({ ...vac, quantity: quantities[id] || 1 }).toLocaleString()}</span>
+                                <span className="text-[10px] text-gray-500">฿{vac.price.toLocaleString()} / dose</span>
                                 <button
                                   onClick={(e) => { e.preventDefault(); toggleVaccine(id); }}
                                   className="text-[10px] text-red-500 hover:text-red-700 font-medium"
@@ -217,22 +242,35 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
                                 </button>
                               </div>
                             </div>
-                            <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
-                              <span className="font-bold">เข็มที่ <span className="text-red-500">*</span></span>
-                              <select
-                                value={doseNumbers[id] || ''}
-                                onChange={e => handleDoseChange(id, e.target.value)}
-                                required
-                                className="w-36 border border-blue-200 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                              >
-                                <option value="">เลือกเข็ม</option>
-                                {DOSE_OPTIONS.map(option => (
-                                  <option key={option} value={option}>
-                                    {option}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <label className="flex flex-col gap-1 text-xs text-gray-600">
+                                <span className="font-bold">เข็มที่ <span className="text-red-500">*</span></span>
+                                <select
+                                  value={doseNumbers[id] || ''}
+                                  onChange={e => handleDoseChange(id, e.target.value)}
+                                  required
+                                  className="w-full border border-blue-200 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                                >
+                                  <option value="">เลือกเข็ม</option>
+                                  {DOSE_OPTIONS.map(option => (
+                                    <option key={option} value={option} disabled={isDoseOptionDisabled(id, option)}>
+                                      {option}{isDoseOptionDisabled(id, option) ? ' (เคยสั่งแล้ว)' : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="flex flex-col gap-1 text-xs text-gray-600">
+                                <span className="font-bold">จำนวน dose <span className="text-red-500">*</span></span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  value={quantities[id] || 1}
+                                  onChange={e => handleQuantityChange(id, e.target.value)}
+                                  className="w-full border border-blue-200 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                                />
+                              </label>
+                            </div>
                           </div>
                         );
                       })}
@@ -322,16 +360,13 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
                   filteredVaccines.map(vac => {
                     const checked = selectedVaccines.includes(vac.id);
                     const hasPaidHistory = paidVaccineIds.has(vac.id);
-                    const isDuplicateToday = orderedTodayVaccineIds.has(vac.id) && !editableExistingIds.has(vac.id);
                     return (
                       <label
                         key={vac.id}
                         className={`group relative flex flex-col p-4 rounded-2xl transition-all border-2 ${
-                          isDuplicateToday
-                            ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-75'
-                            : checked
-                              ? 'bg-blue-50 border-blue-500 shadow-md shadow-blue-100 cursor-pointer'
-                              : 'bg-white border-gray-100 hover:border-blue-200 hover:bg-gray-50 shadow-sm cursor-pointer'
+                          checked
+                            ? 'bg-blue-50 border-blue-500 shadow-md shadow-blue-100 cursor-pointer'
+                            : 'bg-white border-gray-100 hover:border-blue-200 hover:bg-gray-50 shadow-sm cursor-pointer'
                         }`}
                       >
                         <div className="flex justify-between items-start mb-3">
@@ -347,7 +382,6 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
                           type="checkbox"
                           className="hidden"
                           checked={checked}
-                          disabled={isDuplicateToday}
                           onChange={() => toggleVaccine(vac.id)}
                         />
 
@@ -374,12 +408,6 @@ export const DoctorOrderModal: React.FC<DoctorOrderModalProps> = ({ visit, visit
                         {hasPaidHistory && (
                           <div className="absolute right-3 top-3 bg-gray-700 text-white px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1">
                             <Lock size={10} /> ชำระแล้ว
-                          </div>
-                        )}
-
-                        {isDuplicateToday && !hasPaidHistory && (
-                          <div className="absolute right-3 top-3 bg-amber-600 text-white px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1">
-                            <Lock size={10} /> สั่งแล้ววันนี้
                           </div>
                         )}
 

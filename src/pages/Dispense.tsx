@@ -5,7 +5,7 @@ import { SectionTitle } from '../components/common/SectionTitle';
 import { QueueTable, QueueTab } from '../components/common/QueueTable';
 import { Visit } from '../types';
 import { DispenseModal } from '../components/common/DispenseModal';
-import { getOrderKey, omitUndefinedFields } from '../utils/orderWorkflow';
+import { getOrderKey, getOrderQuantity, omitUndefinedFields } from '../utils/orderWorkflow';
 
 export default function Dispense() {
   const { vaccines, updateVisitStatus, updateVaccineStock, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
@@ -40,6 +40,7 @@ export default function Dispense() {
         return omitUndefinedFields({
           ...order,
           orderId: orderKey,
+          quantity: getOrderQuantity(order),
           dispenseStatus: 'dispensed',
         });
       });
@@ -48,7 +49,7 @@ export default function Dispense() {
       await Promise.all((dispenseData.items || []).map((o: any) => {
         const v = vaccines.find(vac => vac.id === o.id);
         if (v) {
-          return updateVaccineStock(v.id, v.stock - 1);
+          return updateVaccineStock(v.id, v.stock - getOrderQuantity(o));
         }
         return Promise.resolve();
       }));
@@ -80,7 +81,7 @@ export default function Dispense() {
     return (
       <div className="flex flex-col">
         <div className="font-medium text-gray-900 text-sm truncate max-w-[200px]">
-          {orders.map((o: any) => o.name).join(', ')}
+          {orders.map((o: any) => `${o.name}${getOrderQuantity(o) > 1 ? ` x${getOrderQuantity(o)}` : ''}`).join(', ')}
         </div>
         <div className="text-xs text-green-600 mt-1 flex items-center gap-1 font-medium bg-green-50 px-2 py-0.5 rounded-md w-fit border border-green-200">
           <CheckCircle size={12}/> ชำระเงินเรียบร้อย

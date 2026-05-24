@@ -4,7 +4,7 @@ import { SectionTitle } from '../components/common/SectionTitle';
 import { QueueTable, QueueTab } from '../components/common/QueueTable';
 import { Visit } from '../types';
 import { VaccineInjectionModal } from '../components/common/VaccineInjectionModal';
-import { formatDoseNumber, getInjectionOrderKey, getPendingInjectionOrders, omitUndefinedFields } from '../utils/orderWorkflow';
+import { formatDoseNumber, getInjectionOrderKey, getOrderQuantity, getPendingInjectionOrders, omitUndefinedFields } from '../utils/orderWorkflow';
 
 export default function Injection() {
   const { updateVisitStatus, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
@@ -96,7 +96,7 @@ export default function Injection() {
     return (
       <div className="bg-blue-50 p-2.5 rounded-md border border-blue-100">
         <div className="font-medium text-blue-800 text-sm">
-          {orders.map((o: any) => `${o.name}${(o.doseNumber || o.doseLabel) ? ` (${formatDoseNumber(o.doseNumber, o.doseLabel)})` : ''}`).join(', ') || 'ไม่มีรายการวัคซีนใหม่ที่ต้องบันทึกฉีด'}
+          {orders.map((o: any) => `${o.name}${(o.doseNumber || o.doseLabel) ? ` (${formatDoseNumber(o.doseNumber, o.doseLabel)})` : ''}${getOrderQuantity(o) > 1 ? ` x${getOrderQuantity(o)}` : ''}`).join(', ') || 'ไม่มีรายการวัคซีนใหม่ที่ต้องบันทึกฉีด'}
         </div>
         <div className="text-xs text-blue-600 font-mono mt-1 bg-white px-1.5 py-0.5 rounded border border-blue-100 inline-block">Lot: {v.data?.dispensedLots}</div>
       </div>

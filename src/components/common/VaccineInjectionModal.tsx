@@ -3,7 +3,7 @@ import { X, Syringe, MapPin, Navigation, Info, CheckCircle2, AlertCircle } from 
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
-import { findDispensedItemForOrder, formatDoseNumber, getOrderKey, getPendingInjectionOrders, omitUndefinedFields } from '../../utils/orderWorkflow';
+import { findDispensedItemForOrder, formatDoseNumber, getOrderKey, getOrderQuantity, getPendingInjectionOrders, omitUndefinedFields } from '../../utils/orderWorkflow';
 
 interface VaccineInjectionModalProps {
   visit: Visit;
@@ -17,6 +17,7 @@ interface InjectionRecord {
   vaccineName: string;
   doseNumber?: number;
   doseLabel?: string;
+  quantity?: number;
   lot: string;
   route: string;
   site: string;
@@ -30,6 +31,7 @@ const buildInitialRecords = (visit: Visit): InjectionRecord[] => {
     orderId: getOrderKey(order, index),
     vaccineId: order.id,
     vaccineName: order.name,
+    quantity: getOrderQuantity(order),
     ...(order.doseNumber !== undefined ? { doseNumber: order.doseNumber } : {}),
     ...(order.doseLabel ? { doseLabel: order.doseLabel } : {}),
     lot: findDispensedItemForOrder(visit, order, index)?.lot || lotsArray[index] || lotsArray[0] || '',
@@ -121,6 +123,9 @@ export const VaccineInjectionModal: React.FC<VaccineInjectionModalProps> = ({ vi
                             {formatDoseNumber(record.doseNumber, record.doseLabel)}
                           </span>
                         )}
+                        <span className="text-xs font-bold text-gray-700 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">
+                          {getOrderQuantity(record)} dose
+                        </span>
                       </div>
                     </div>
                   </div>

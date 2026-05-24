@@ -5,7 +5,7 @@ import { QueueTable, QueueTab } from '../components/common/QueueTable';
 import { Visit } from '../types';
 import { CashierModal } from '../components/common/CashierModal';
 import { CheckCircle2, Receipt } from 'lucide-react';
-import { getOrderKey, getUnpaidOrders, isOrderPaid, omitUndefinedFields } from '../utils/orderWorkflow';
+import { getOrderKey, getOrderLineTotal, getOrderQuantity, getUnpaidOrders, isOrderPaid, omitUndefinedFields } from '../utils/orderWorkflow';
 
 export default function Cashier() {
   const { updateVisitStatus, setModalConfig, activeVisitId, setActiveVisitId, visits } = useAppContext();
@@ -102,11 +102,11 @@ export default function Cashier() {
 
   const renderOrderInfo = (v: Visit) => {
     const orders = getUnpaidOrders(v);
-    const totalPrice = orders.reduce((sum: number, o: any) => sum + (o.price || 0), 0);
+    const totalPrice = orders.reduce((sum: number, o: any) => sum + getOrderLineTotal(o), 0);
     return (
       <div className="flex flex-col">
         <div className="font-medium text-gray-800 text-sm truncate max-w-[200px]">
-          {orders.map((o: any) => o.name).join(', ') || 'ไม่มีรายการค้างชำระ'}
+          {orders.map((o: any) => `${o.name}${getOrderQuantity(o) > 1 ? ` x${getOrderQuantity(o)}` : ''}`).join(', ') || 'ไม่มีรายการค้างชำระ'}
         </div>
         <div className="text-red-600 font-bold mt-1 text-sm flex items-center gap-1">
           <Receipt size={14} />

@@ -8,6 +8,7 @@ export type OrderDraft = {
   id: string;
   doseNumber?: number;
   doseLabel?: string;
+  quantity?: number;
 };
 
 export const VACCINE_HISTORY_COLUMNS = [
@@ -22,6 +23,41 @@ export type VaccineHistoryColumnKey = typeof VACCINE_HISTORY_COLUMNS[number]['ke
 
 export const getOrderKey = (order: any, index = 0) =>
   String(order?.orderId || order?.id || `order-${index}`);
+
+export const getOrderQuantity = (order: any) => {
+  const quantity = Number(order?.quantity);
+  return Number.isFinite(quantity) && quantity > 0 ? Math.max(1, Math.floor(quantity)) : 1;
+};
+
+export const getOrderLineTotal = (order: any) =>
+  (Number(order?.price) || 0) * getOrderQuantity(order);
+
+export const getDoseSelectionValue = (item: any) => {
+  if (item?.doseLabel) {
+    return String(item.doseLabel).startsWith('เข็มที่ ')
+      ? String(item.doseLabel).replace('เข็มที่ ', '')
+      : String(item.doseLabel);
+  }
+  if (item?.doseNumber !== undefined && item?.doseNumber !== null && item?.doseNumber !== '') {
+    return String(item.doseNumber);
+  }
+  return '';
+};
+
+export const getNumericDoseValue = (item: any) => {
+  const dose = Number(item?.doseNumber);
+  return dose >= 1 && dose <= 3 ? String(dose) : '';
+};
+
+export const applyDoseSelection = <T extends Record<string, any>>(item: T, selectedDose: string) => {
+  const { doseNumber, doseLabel, ...rest } = item;
+  const isNumericDose = /^\d+$/.test(selectedDose);
+  return omitUndefinedFields({
+    ...rest,
+    ...(isNumericDose ? { doseNumber: Number(selectedDose) } : {}),
+    ...(!isNumericDose && selectedDose ? { doseLabel: selectedDose } : {}),
+  }) as Partial<T>;
+};
 
 export const isOrderPaid = (order: any, visit?: Visit) => {
   if (order?.paymentStatus === 'paid') return true;
@@ -94,6 +130,7 @@ export const getCompletedInjectionRecords = (visit: Visit) => {
       orderId: getOrderKey(order, index),
       vaccineId: order.id,
       vaccineName: order.name,
+      quantity: getOrderQuantity(order),
       ...(order.doseNumber !== undefined ? { doseNumber: order.doseNumber } : {}),
       ...(order.doseLabel ? { doseLabel: order.doseLabel } : {}),
       lot: dispensedItem?.lot || lotsArray[index] || lotsArray[0] || '',
@@ -130,7 +167,13 @@ export const buildVaccineHistoryRows = (records: any[]) => {
       }, {} as Record<VaccineHistoryColumnKey, any[]>),
     };
 
-    row.cells[getVaccineHistoryColumnKey(record)].push(record);
+    const columnKey = getVaccineHistoryColumnKey(record);
+    const current = row.cells[columnKey][0];
+    const recordTime = Date.parse(record?.injectedAt || record?.visitDate || record?.timestamp || '');
+    const currentTime = Date.parse(current?.injectedAt || current?.visitDate || current?.timestamp || '');
+    if (!current || (Number.isFinite(recordTime) && (!Number.isFinite(currentTime) || recordTime >= currentTime))) {
+      row.cells[columnKey] = [record];
+    }
     rowMap.set(rowKey, row);
   });
 
@@ -160,6 +203,7 @@ export const buildUnpaidOrder = (
   orderId: existingOrder?.orderId || `${vaccine.id}-${Date.now()}-${index}`,
   ...(draft.doseNumber !== undefined ? { doseNumber: draft.doseNumber } : {}),
   ...(draft.doseLabel ? { doseLabel: draft.doseLabel } : {}),
+  quantity: getOrderQuantity(draft.quantity !== undefined ? draft : existingOrder),
   paymentStatus: 'unpaid' as PaymentStatus,
   dispenseStatus: 'pending' as DispenseStatus,
   orderedAt: existingOrder?.orderedAt || orderedAt,

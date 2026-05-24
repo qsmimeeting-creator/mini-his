@@ -3,7 +3,7 @@ import { X, CreditCard, Receipt, CheckCircle2, Wallet } from 'lucide-react';
 import { Visit, VisitStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { PatientSummaryBar } from './PatientSummaryBar';
-import { formatDoseNumber, getUnpaidOrders } from '../../utils/orderWorkflow';
+import { formatDoseNumber, getOrderLineTotal, getOrderQuantity, getUnpaidOrders } from '../../utils/orderWorkflow';
 
 interface CashierModalProps {
   visit: Visit;
@@ -15,7 +15,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onCo
   const { patients } = useAppContext();
   const patient = patients.find(p => p.id === visit.patientId);
   const orders = getUnpaidOrders(visit);
-  const totalAmount = orders.reduce((sum: number, o: any) => sum + (o.price || 0), 0);
+  const totalAmount = orders.reduce((sum: number, o: any) => sum + getOrderLineTotal(o), 0);
   const hasPendingPayment = orders.length > 0 && totalAmount > 0;
 
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -82,8 +82,9 @@ export const CashierModal: React.FC<CashierModalProps> = ({ visit, onClose, onCo
                           {(order.doseNumber || order.doseLabel) && (
                             <div className="text-[10px] text-gray-500">{formatDoseNumber(order.doseNumber, order.doseLabel)}</div>
                           )}
+                          <div className="text-[10px] text-gray-500">{getOrderQuantity(order)} dose x ฿{(order.price || 0).toLocaleString()}</div>
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-900">฿{(order.price || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right font-medium text-gray-900">฿{getOrderLineTotal(order).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>

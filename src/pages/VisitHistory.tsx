@@ -1,13 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, History, Edit2, RotateCcw, CheckCircle, XCircle, User, Calendar, Clock, ArrowRight, Activity, Stethoscope, Syringe } from 'lucide-react';
+import { Search, History, RotateCcw, XCircle, User, ArrowRight, Activity, Stethoscope, Syringe, Save } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { Visit, VisitStatus } from '../types';
 import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { SectionTitle } from '../components/common/SectionTitle';
-import { formatDoseNumber, getCompletedInjectionRecords } from '../utils/orderWorkflow';
+import { applyDoseSelection, formatDoseNumber, getDoseSelectionValue, getNumericDoseValue, getOrderKey, getOrderQuantity, getCompletedInjectionRecords, omitUndefinedFields } from '../utils/orderWorkflow';
 import { VaccineHistoryTable } from '../components/common/VaccineHistoryTable';
+import { isVisitToday } from '../utils/visitDate';
 
 const STATUS_LABELS: Record<VisitStatus, { label: string, color: string, step: number }> = {
   'SCREENING_PENDING': { label: 'รอคัดกรอง', color: 'bg-blue-100 text-blue-700', step: 1 },
@@ -36,17 +37,19 @@ const STEPS = [
   { id: 'COMPLETED', label: 'เสร็จสิ้น', path: '/' }
 ];
 
+const DOSE_OPTIONS = ['1', '2', '3', 'เข็มกระตุ้น', 'ไม่ระบุเข็ม'];
+
 export default function VisitHistory() {
   const { visits, patients, updateVisitStatus, setModalConfig, setActiveVisitId } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
   const navigate = useNavigate();
 
   const filteredVisits = useMemo(() => {
-    if (!searchTerm) return visits.slice(0, 20);
+    const todayVisits = visits.filter(v => isVisitToday(v.timestamp));
+    if (!searchTerm) return todayVisits.slice(0, 20);
     const lower = searchTerm.toLowerCase();
-    return visits.filter(v => 
+    return todayVisits.filter(v => 
       v.patientName.toLowerCase().includes(lower) || 
       v.vn.toLowerCase().includes(lower) ||
       v.patientId.toLowerCase().includes(lower)
@@ -93,6 +96,127 @@ export default function VisitHistory() {
     } catch (e) {
       return isoString;
     }
+  };
+
+  const getUsedNumericDosesForOrder = (visit: Visit, targetOrder: any, targetIndex: number) => {
+    const targetKey = `${visit.id}:${getOrderKey(targetOrder, targetIndex)}:${targetIndex}`;
+    return visits
+      .filter(v => v.patientId === visit.patientId && v.status !== 'VOID')
+      .flatMap(v => (v.data?.orders || []).map((order: any, index: number) => ({ visit: v, order, index })))
+      .filter(({ visit: itemVisit, order, index }) =>
+        order?.id === targetOrder?.id &&
+        `${itemVisit.id}:${getOrderKey(order, index)}:${index}` !== targetKey
+      )
+      .reduce((acc: Set<string>, { order }) => {
+        const dose = getNumericDoseValue(order);
+        if (dose) acc.add(dose);
+        return acc;
+      }, new Set<string>());
+  };
+
+  const handleDoseEdit = async (visit: Visit, orderIndex: number, selectedDose: string) => {
+    const orders = Array.isArray(visit.data?.orders) ? visit.data.orders : [];
+    const targetOrder = orders[orderIndex];
+    if (!targetOrder || !selectedDose) return;
+
+    const usedDoses = getUsedNumericDosesForOrder(visit, targetOrder, orderIndex);
+    if (/^\d+$/.test(selectedDose) && usedDoses.has(selectedDose)) {
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'ไม่สามารถแก้เข็มได้',
+        message: 'วัคซีนรายการนี้เคยมีเข็มเลขนี้แล้ว กรุณาเลือกเข็มอื่น'
+      });
+      return;
+    }
+
+    const targetOrderKey = getOrderKey(targetOrder, orderIndex);
+    const previousDose = getDoseSelectionValue(targetOrder);
+    const matchLinkedItem = (item: any) => {
+      if (item?.orderId && item.orderId === targetOrderKey) return true;
+      const sameVaccine = item?.id === targetOrder.id || item?.vaccineId === targetOrder.id;
+      return sameVaccine && getDoseSelectionValue(item) === previousDose;
+    };
+
+    const updatedOrders = orders.map((order: any, index: number) => {
+      if (index !== orderIndex) return omitUndefinedFields(order);
+      return applyDoseSelection({
+        ...order,
+        orderId: targetOrderKey,
+        quantity: getOrderQuantity(order),
+      }, selectedDose);
+    });
+
+    const updateLinkedDose = (items: any[] = []) => items.map((item: any) => {
+      if (!matchLinkedItem(item)) return omitUndefinedFields(item);
+      return applyDoseSelection({
+        ...item,
+        orderId: item.orderId || targetOrderKey,
+        quantity: getOrderQuantity(item),
+      }, selectedDose);
+    });
+
+    const updatedData: any = omitUndefinedFields({
+      ...visit.data,
+      orders: updatedOrders,
+      dispensedItems: updateLinkedDose(Array.isArray(visit.data?.dispensedItems) ? visit.data.dispensedItems : []),
+      injectionRecords: updateLinkedDose(Array.isArray(visit.data?.injectionRecords) ? visit.data.injectionRecords : []),
+    });
+
+    try {
+      await updateVisitStatus(visit.id, visit.status, updatedData);
+      setSelectedVisit({ ...visit, data: updatedData });
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'บันทึกเข็มเรียบร้อย',
+        message: 'แก้ไขเข็มของรายการวัคซีนแล้ว โดยไม่เปลี่ยนยอดเงินหรือสต็อก'
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const renderDoseEditor = (visit: Visit) => {
+    const orders = Array.isArray(visit.data?.orders) ? visit.data.orders : [];
+    if (orders.length === 0) return null;
+
+    return (
+      <section className="bg-white rounded-2xl p-6 border border-gray-200">
+        <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Save size={16} />
+          แก้ไขเข็มที่ของรายการวัคซีน
+        </h4>
+        <div className="space-y-3">
+          {orders.map((order: any, index: number) => {
+            const usedDoses = getUsedNumericDosesForOrder(visit, order, index);
+            const currentDose = getDoseSelectionValue(order);
+            return (
+              <div key={`${getOrderKey(order, index)}-${index}`} className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3 items-center rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-900">{order.name || '-'}</p>
+                  <p className="text-xs text-gray-500">
+                    {formatDoseNumber(order.doseNumber, order.doseLabel) || 'ไม่ระบุเข็ม'} | {getOrderQuantity(order)} dose
+                  </p>
+                </div>
+                <select
+                  value={currentDose}
+                  onChange={e => handleDoseEdit(visit, index, e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">เลือกเข็ม</option>
+                  {DOSE_OPTIONS.map(option => (
+                    <option key={option} value={option} disabled={/^\d+$/.test(option) && usedDoses.has(option) && option !== currentDose}>
+                      {option}{/^\d+$/.test(option) && usedDoses.has(option) && option !== currentDose ? ' (เคยสั่งแล้ว)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
   };
 
   const renderCompletedVaccines = (visit: Visit) => {
@@ -352,6 +476,8 @@ export default function VisitHistory() {
                   </div>
                 </div>
               </div>
+
+              {renderDoseEditor(selectedVisit)}
 
               {renderCompletedVaccines(selectedVisit)}
             </div>
