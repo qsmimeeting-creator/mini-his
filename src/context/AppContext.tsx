@@ -1,7 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, signInAnonymously } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
+import {
+  EmailAuthProvider,
+  onAuthStateChanged,
+  reauthenticateWithCredential,
+  signInWithEmailAndPassword,
+  signOut,
+  updatePassword,
+  User
+} from 'firebase/auth';
+import { collection, onSnapshot, doc, setDoc, updateDoc, runTransaction, getDoc } from 'firebase/firestore';
 import { AuditLogEntry, Patient, UserRole, UserRoleProfile, Visit, Vaccine } from '../types';
 import { handleFirestoreError, OperationType } from '../utils/firestore';
 import { removeUndefinedDeep } from '../utils/firestoreData';
@@ -31,10 +39,13 @@ interface ModalConfig {
 interface AppContextType {
   user: User | null;
   isAuthReady: boolean;
-  login: () => void;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  bootstrapAdmin: () => Promise<void>;
+  changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   userRole: UserRoleProfile | null;
   userRoles: UserRole[];
+  userProfiles: UserRoleProfile[];
   isRoleReady: boolean;
   hasRole: (roles: UserRole | UserRole[]) => boolean;
   canAccessRoute: (path: string) => boolean;
@@ -63,7 +74,27 @@ interface AppContextType {
   resetSystem: () => Promise<void>;
   updateOpdCoverLayout: (layout: OpdCoverLayout) => Promise<void>;
   resetOpdCoverLayout: () => Promise<void>;
+  createUserAccount: (data: CreateUserAccountInput) => Promise<void>;
+  updateUserAccount: (uid: string, data: UpdateUserAccountInput) => Promise<void>;
+  resetUserPassword: (uid: string, password: string) => Promise<void>;
 }
+
+export type CreateUserAccountInput = {
+  username: string;
+  password: string;
+  email: string;
+  firstname: string;
+  surname: string;
+  role: UserRole;
+};
+
+export type UpdateUserAccountInput = {
+  email: string;
+  firstname: string;
+  surname: string;
+  role: UserRole;
+  active: boolean;
+};
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -71,6 +102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [userRole, setUserRole] = useState<UserRoleProfile | null>(null);
+  const [userProfiles, setUserProfiles] = useState<UserRoleProfile[]>([]);
   const [isRoleReady, setIsRoleReady] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -105,12 +137,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const data = snapshot.data();
+      const displayName = data.displayName || [data.firstname, data.surname].filter(Boolean).join(' ') || user.displayName || undefined;
       setUserRole({
         uid: user.uid,
+        username: data.username,
         email: data.email || user.email || undefined,
-        displayName: data.displayName || user.displayName || undefined,
+        firstname: data.firstname,
+        surname: data.surname,
+        displayName,
         roles: normalizeRoles(data.roles),
         active: data.active === true,
+        mustChangePassword: data.mustChangePassword === true,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
         updatedBy: data.updatedBy,
@@ -240,6 +277,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [isAuthReady, user, isRoleReady, userRoles.join('|')]);
 
+  useEffect(() => {
+    if (!isAuthReady || !user || !isRoleReady || !canPerformActionWithRoles(userRoles, 'manageUsers')) {
+      setUserProfiles([]);
+      return;
+    }
+
+    return onSnapshot(collection(db, 'userRoles'), (snapshot) => {
+      setUserProfiles(snapshot.docs.map(d => {
+        const data = d.data();
+        return {
+          uid: d.id,
+          username: data.username,
+          email: data.email,
+          firstname: data.firstname,
+          surname: data.surname,
+          displayName: data.displayName || [data.firstname, data.surname].filter(Boolean).join(' '),
+          roles: normalizeRoles(data.roles),
+          active: data.active === true,
+          mustChangePassword: data.mustChangePassword === true,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          updatedBy: data.updatedBy,
+        } as UserRoleProfile;
+      }));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'userRoles'));
+  }, [isAuthReady, user, isRoleReady, userRoles.join('|')]);
+
   const buildAuditLog = (
     action: string,
     targetType: AuditLogEntry['targetType'],
@@ -269,13 +333,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const login = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error(error);
+  const login = async (username: string, password: string) => {
+    const normalizedUsername = username.trim().toLowerCase();
+    if (!normalizedUsername || !password) throw new Error('กรุณากรอก Username และ Password');
+
+    const usernameSnapshot = await getDoc(doc(db, 'usernames', normalizedUsername));
+    if (!usernameSnapshot.exists()) {
+      throw new Error('ไม่พบ Username นี้ในระบบ');
     }
+
+    const email = usernameSnapshot.data().email;
+    if (!email) throw new Error('บัญชีนี้ยังไม่มี Email สำหรับเข้าสู่ระบบ');
+    await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const bootstrapAdmin = async () => {
+    const response = await fetch('/api/admin/bootstrap', { method: 'POST' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) {
+      throw new Error(data.message || 'ไม่สามารถสร้าง Admin เริ่มต้นได้');
+    }
+  };
+
+  const changeOwnPassword = async (currentPassword: string, newPassword: string) => {
+    if (!user?.email) throw new Error('ไม่พบข้อมูลผู้ใช้งานปัจจุบัน');
+    if (newPassword.length < 6) throw new Error('Password ใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');
+    if (!requireAction('changeOwnPassword')) throw new Error('PERMISSION_DENIED');
+
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+    await updatePassword(user, newPassword);
+    await updateDoc(doc(db, 'userRoles', user.uid), removeUndefinedDeep({
+      mustChangePassword: false,
+      updatedAt: new Date().toISOString(),
+      updatedBy: user.uid,
+    }));
+    await writeAuditLog('user.changeOwnPassword', 'user', user.uid);
   };
 
   const logout = async () => {
@@ -618,16 +711,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const callAdminApi = async (path: string, method: string, body: Record<string, any>) => {
+    if (!requireAction('manageUsers')) throw new Error('PERMISSION_DENIED');
+    if (!user) throw new Error('AUTH_REQUIRED');
+
+    const token = await user.getIdToken();
+    const response = await fetch(path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) {
+      throw new Error(data.message || 'ไม่สามารถดำเนินการจัดการผู้ใช้งานได้');
+    }
+    return data;
+  };
+
+  const createUserAccount = async (data: CreateUserAccountInput) => {
+    await callAdminApi('/api/admin/users/create', 'POST', data);
+  };
+
+  const updateUserAccount = async (uid: string, data: UpdateUserAccountInput) => {
+    await callAdminApi('/api/admin/users/update', 'PATCH', { uid, ...data });
+  };
+
+  const resetUserPassword = async (uid: string, password: string) => {
+    await callAdminApi('/api/admin/users/reset-password', 'POST', { uid, password });
+  };
+
   return (
     <AppContext.Provider value={{
-      user, isAuthReady, login, logout,
-      userRole, userRoles, isRoleReady, hasRole, canAccessRoute, canPerformAction, requireAction,
+      user, isAuthReady, login, logout, bootstrapAdmin, changeOwnPassword,
+      userRole, userRoles, userProfiles, isRoleReady, hasRole, canAccessRoute, canPerformAction, requireAction,
       patients, visits, vaccines, auditLogs, opdCoverLayout,
       activeVisitId, setActiveVisitId,
       modalConfig, setModalConfig,
       registerPatient, updatePatient, deletePatient, openVisit, updateVisitStatus, updateVaccineStock, dispenseVisitWithStock,
       addVaccine, updateVaccine, deleteVaccine, voidVisit, resetSystem,
-      updateOpdCoverLayout, resetOpdCoverLayout
+      updateOpdCoverLayout, resetOpdCoverLayout,
+      createUserAccount, updateUserAccount, resetUserPassword
     }}>
       {children}
     </AppContext.Provider>

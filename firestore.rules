@@ -30,9 +30,26 @@ service cloud.firestore {
       return hasAnyRole(['admin']);
     }
 
+    function onlyChangingOwnPasswordFlag(uid) {
+      return signedIn()
+        && request.auth.uid == uid
+        && resource.data.active == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword', 'updatedAt', 'updatedBy'])
+        && request.resource.data.mustChangePassword == false
+        && request.resource.data.updatedBy == request.auth.uid;
+    }
+
     match /userRoles/{uid} {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() || onlyChangingOwnPasswordFlag(uid);
+      allow delete: if false;
+    }
+
+    match /usernames/{username} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update, delete: if false;
     }
 
     match /patients/{patientId} {

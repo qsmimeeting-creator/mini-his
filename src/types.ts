@@ -182,7 +182,7 @@ export interface InjectionRecord {
 export interface AuditLogEntry {
   id?: string;
   action: string;
-  targetType: 'patient' | 'visit' | 'vaccine' | 'system' | 'opdCoverLayout';
+  targetType: 'patient' | 'visit' | 'vaccine' | 'system' | 'opdCoverLayout' | 'user';
   targetId: string;
   actorId?: string;
   actorName?: string;
@@ -195,10 +195,14 @@ export type UserRole = 'admin' | 'register' | 'nurse' | 'doctor' | 'cashier' | '
 
 export interface UserRoleProfile {
   uid: string;
+  username?: string;
   email?: string;
+  firstname?: string;
+  surname?: string;
   displayName?: string;
   roles: UserRole[];
   active: boolean;
+  mustChangePassword?: boolean;
   createdAt?: string;
   updatedAt?: string;
   updatedBy?: string;

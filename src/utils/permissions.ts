@@ -13,7 +13,9 @@ export type AppAction =
   | 'manageVaccine'
   | 'resetSystem'
   | 'updateOpdCoverLayout'
-  | 'exportAuditLog';
+  | 'exportAuditLog'
+  | 'manageUsers'
+  | 'changeOwnPassword';
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
@@ -36,6 +38,7 @@ const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/data-management': ['admin', 'report'],
   '/vaccine-inventory': ['admin', 'stock'],
   '/visit-history': ['admin', 'nurse', 'doctor'],
+  '/user-management': ['admin'],
 };
 
 const ACTION_ROLES: Record<AppAction, UserRole[]> = {
@@ -52,6 +55,8 @@ const ACTION_ROLES: Record<AppAction, UserRole[]> = {
   resetSystem: ['admin'],
   updateOpdCoverLayout: ['admin'],
   exportAuditLog: ['admin', 'report'],
+  manageUsers: ['admin'],
+  changeOwnPassword: ['admin', 'register', 'nurse', 'doctor', 'cashier', 'stock', 'report'],
 };
 
 export const normalizeRoles = (roles: unknown): UserRole[] => {

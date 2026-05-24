@@ -30,6 +30,31 @@ Deploy the web app as a Vite SPA:
 
 The existing `vercel.json` rewrites all routes to `index.html`, so direct links such as `/registration` can refresh correctly on Vercel.
 
+## User Login and Admin Setup
+
+Mini HIS now uses Username/Password login. The first Admin account is created from the login page with the button `สร้าง Admin เริ่มต้น`.
+
+Default bootstrap account:
+
+- Username: `Admin`
+- Password: `Clinic`
+
+After the first login, the system forces the Admin to change the password before using the app. Once logged in as Admin, open `จัดการผู้ใช้งาน` to create users for each role: Admin, Register, Nurse, Doctor, Cashier, Stock, and Report.
+
+Vercel Admin API endpoints use Firebase Admin SDK. Set these environment variables in Vercel before using bootstrap or user management:
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON` as the full Firebase service account JSON, or
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
+- Optional: `FIREBASE_FIRESTORE_DATABASE_ID` if different from `firebase-applet-config.json`
+
+Deploy Firestore rules separately after changes:
+
+```powershell
+firebase deploy --only firestore:rules
+```
+
 ## Thai ID Card Reader on Each Computer
 
 The Vercel web app cannot access a smart card reader directly. On each Windows computer that needs to read Thai ID cards, copy only the `reader-service/` folder and install that small local service.
