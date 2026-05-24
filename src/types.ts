@@ -191,6 +191,19 @@ export interface AuditLogEntry {
   details?: Record<string, any>;
 }
 
+export type UserRole = 'admin' | 'register' | 'nurse' | 'doctor' | 'cashier' | 'stock' | 'report';
+
+export interface UserRoleProfile {
+  uid: string;
+  email?: string;
+  displayName?: string;
+  roles: UserRole[];
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export type VisitStatus = 
   | 'SCREENING_PENDING' 
   | 'SCREENING_IN_PROGRESS' 

@@ -221,7 +221,7 @@ const exportAuditLogsToExcel = (logs: AuditLogEntry[]) => {
 };
 
 export default function DataManagement() {
-  const { visits, patients, auditLogs, resetSystem, setModalConfig } = useAppContext();
+  const { visits, patients, auditLogs, resetSystem, setModalConfig, canPerformAction } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -501,55 +501,59 @@ export default function DataManagement() {
         </div>
       </div>
 
-      {/* System Maintenance */}
-      <div className="bg-red-50 rounded-xl border border-red-100 p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-red-100 text-red-600 rounded-lg">
-            <Settings size={20} />
-          </div>
-          <div>
-            <h3 className="font-bold text-red-900">การดูแลรักษาระบบ (System Maintenance)</h3>
-            <p className="text-sm text-red-700">จัดการข้อมูลพื้นฐานและล้างข้อมูลระบบ</p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-red-200 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="text-amber-500 mt-1 shrink-0" size={20} />
+      {canPerformAction('resetSystem') && (
+        <>
+        {/* System Maintenance */}
+        <div className="bg-red-50 rounded-xl border border-red-100 p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-red-100 text-red-600 rounded-lg">
+              <Settings size={20} />
+            </div>
             <div>
-              <p className="font-bold text-gray-800">ล้างข้อมูลทั้งหมด (Factory Reset)</p>
-              <p className="text-xs text-gray-500">ลบรายชื่อผู้ป่วย ประวัติการรับบริการ และรีเซ็ตเลข HN ทั้งหมด (ไม่สามารถกู้คืนได้)</p>
+              <h3 className="font-bold text-red-900">การดูแลรักษาระบบ (System Maintenance)</h3>
+              <p className="text-sm text-red-700">จัดการข้อมูลพื้นฐานและล้างข้อมูลระบบ</p>
             </div>
           </div>
-          <button 
-            onClick={() => {
-              setModalConfig({
-                isOpen: true,
-                type: 'prompt',
-                title: 'ยืนยันการล้างข้อมูลทั้งหมด',
-                message: 'การล้างข้อมูลไม่สามารถกู้คืนได้ หากต้องการดำเนินการต่อให้พิมพ์ RESET',
-                defaultValue: '',
-                onConfirm: (value) => {
-                  if ((value || '').trim() === 'RESET') {
-                    void resetSystem();
-                    return;
+          
+          <div className="bg-white p-4 rounded-lg border border-red-200 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-amber-500 mt-1 shrink-0" size={20} />
+              <div>
+                <p className="font-bold text-gray-800">ล้างข้อมูลทั้งหมด (Factory Reset)</p>
+                <p className="text-xs text-gray-500">ลบรายชื่อผู้ป่วย ประวัติการรับบริการ และรีเซ็ตเลข HN ทั้งหมด (ไม่สามารถกู้คืนได้)</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setModalConfig({
+                  isOpen: true,
+                  type: 'prompt',
+                  title: 'ยืนยันการล้างข้อมูลทั้งหมด',
+                  message: 'การล้างข้อมูลไม่สามารถกู้คืนได้ หากต้องการดำเนินการต่อให้พิมพ์ RESET',
+                  defaultValue: '',
+                  onConfirm: (value) => {
+                    if ((value || '').trim() === 'RESET') {
+                      void resetSystem();
+                      return;
+                    }
+                    setModalConfig({
+                      isOpen: true,
+                      type: 'alert',
+                      title: 'ยกเลิกการล้างข้อมูล',
+                      message: 'ข้อความยืนยันไม่ถูกต้อง ระบบยังไม่ลบข้อมูลใด ๆ'
+                    });
                   }
-                  setModalConfig({
-                    isOpen: true,
-                    type: 'alert',
-                    title: 'ยกเลิกการล้างข้อมูล',
-                    message: 'ข้อความยืนยันไม่ถูกต้อง ระบบยังไม่ลบข้อมูลใด ๆ'
-                  });
-                }
-              });
-            }}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg transition-colors shadow-sm font-bold text-sm"
-          >
-            <Trash2 size={18} />
-            ล้างข้อมูลระบบ
-          </button>
+                });
+              }}
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg transition-colors shadow-sm font-bold text-sm"
+            >
+              <Trash2 size={18} />
+              ล้างข้อมูลระบบ
+            </button>
+          </div>
         </div>
-      </div>
+        </>
+      )}
 
       {selectedPatientId && (
         <PatientDetailsModal 

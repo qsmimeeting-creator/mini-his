@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, signInAnonymously } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
-import { AuditLogEntry, Patient, Visit, Vaccine } from '../types';
+import { AuditLogEntry, Patient, UserRole, UserRoleProfile, Visit, Vaccine } from '../types';
 import { handleFirestoreError, OperationType } from '../utils/firestore';
 import { removeUndefinedDeep } from '../utils/firestoreData';
 import {
@@ -12,6 +12,12 @@ import {
 } from '../utils/opdCoverLayout';
 import { getLocalDateKey } from '../utils/visitDate';
 import { getOrderKey, getOrderQuantity, omitUndefinedFields } from '../utils/orderWorkflow';
+import {
+  AppAction,
+  canAccessRouteWithRoles,
+  canPerformActionWithRoles,
+  normalizeRoles,
+} from '../utils/permissions';
 
 interface ModalConfig {
   isOpen: boolean;
@@ -27,6 +33,13 @@ interface AppContextType {
   isAuthReady: boolean;
   login: () => void;
   logout: () => void;
+  userRole: UserRoleProfile | null;
+  userRoles: UserRole[];
+  isRoleReady: boolean;
+  hasRole: (roles: UserRole | UserRole[]) => boolean;
+  canAccessRoute: (path: string) => boolean;
+  canPerformAction: (action: AppAction) => boolean;
+  requireAction: (action: AppAction, message?: string) => boolean;
   patients: Patient[];
   visits: Visit[];
   vaccines: Vaccine[];
@@ -57,6 +70,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [userRole, setUserRole] = useState<UserRoleProfile | null>(null);
+  const [isRoleReady, setIsRoleReady] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [vaccines, setVaccines] = useState<Vaccine[]>([]);
@@ -71,13 +86,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
+      setUserRole(null);
+      setIsRoleReady(!u);
       setIsAuthReady(true);
     });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!isAuthReady) return;
+    if (!user) return;
+
+    setIsRoleReady(false);
+    const unsubscribe = onSnapshot(doc(db, 'userRoles', user.uid), (snapshot) => {
+      if (!snapshot.exists()) {
+        setUserRole(null);
+        setIsRoleReady(true);
+        return;
+      }
+
+      const data = snapshot.data();
+      setUserRole({
+        uid: user.uid,
+        email: data.email || user.email || undefined,
+        displayName: data.displayName || user.displayName || undefined,
+        roles: normalizeRoles(data.roles),
+        active: data.active === true,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        updatedBy: data.updatedBy,
+      });
+      setIsRoleReady(true);
+    }, (error) => {
+      console.error('Error loading user role:', error);
+      setUserRole(null);
+      setIsRoleReady(true);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const userRoles = userRole?.active ? userRole.roles : [];
+
+  const hasRole = (roles: UserRole | UserRole[]) => {
+    const allowedRoles = Array.isArray(roles) ? roles : [roles];
+    return userRoles.includes('admin') || allowedRoles.some(role => userRoles.includes(role));
+  };
+
+  const canAccessRoute = (path: string) => canAccessRouteWithRoles(userRoles, path);
+
+  const canPerformAction = (action: AppAction) => canPerformActionWithRoles(userRoles, action);
+
+  const showPermissionDenied = (message?: string) => {
+    setModalConfig({
+      isOpen: true,
+      type: 'alert',
+      title: 'ไม่มีสิทธิ์ดำเนินการ',
+      message: message || 'บัญชีผู้ใช้นี้ไม่มีสิทธิ์สำหรับการทำรายการนี้ กรุณาติดต่อผู้ดูแลระบบ'
+    });
+  };
+
+  const requireAction = (action: AppAction, message?: string) => {
+    if (canPerformAction(action)) return true;
+    showPermissionDenied(message);
+    return false;
+  };
+
+  useEffect(() => {
+    if (!isAuthReady || !user || !isRoleReady || userRoles.length === 0) return;
 
     const unsubPatients = onSnapshot(collection(db, 'patients'), (snapshot) => {
       setPatients(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Patient)));
@@ -89,7 +164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const unsubVaccines = onSnapshot(collection(db, 'vaccines'), (snapshot) => {
       const vacs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Vaccine));
-      if (vacs.length === 0) {
+      if (vacs.length === 0 && canPerformActionWithRoles(userRoles, 'manageVaccine')) {
         const INITIAL_VACCINES: Vaccine[] = [
           { 
             id: 'V01', 
@@ -150,9 +225,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setOpdCoverLayout(normalizeOpdCoverLayout(data?.layout));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'metadata/opdCoverLayout'));
 
-    const unsubAuditLogs = onSnapshot(collection(db, 'auditLogs'), (snapshot) => {
-      setAuditLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AuditLogEntry)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'auditLogs'));
+    const unsubAuditLogs = canPerformActionWithRoles(userRoles, 'exportAuditLog')
+      ? onSnapshot(collection(db, 'auditLogs'), (snapshot) => {
+          setAuditLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AuditLogEntry)));
+        }, (error) => handleFirestoreError(error, OperationType.LIST, 'auditLogs'))
+      : () => setAuditLogs([]);
 
     return () => {
       unsubPatients();
@@ -161,7 +238,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubOpdCoverLayout();
       unsubAuditLogs();
     };
-  }, [isAuthReady]);
+  }, [isAuthReady, user, isRoleReady, userRoles.join('|')]);
 
   const buildAuditLog = (
     action: string,
@@ -206,6 +283,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const registerPatient = async (patientData: Omit<Patient, 'id' | 'hn'>) => {
+    if (!requireAction('registerPatient')) throw new Error('PERMISSION_DENIED');
     const id = `P${Date.now()}`;
     const now = new Date();
     const beYear = (now.getFullYear() + 543).toString().slice(-2);
@@ -250,6 +328,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updatePatient = async (patientId: string, patientData: Partial<Patient>) => {
+    if (!requireAction('updatePatient')) throw new Error('PERMISSION_DENIED');
     try {
       await updateDoc(doc(db, 'patients', patientId), removeUndefinedDeep(patientData));
       await writeAuditLog('patient.update', 'patient', patientId, { fields: Object.keys(patientData) });
@@ -260,6 +339,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deletePatient = async (patientId: string) => {
+    if (!requireAction('deletePatient')) throw new Error('PERMISSION_DENIED');
     try {
       const { deleteDoc } = await import('firebase/firestore');
       await deleteDoc(doc(db, 'patients', patientId));
@@ -271,6 +351,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const openVisit = async (patient: Patient) => {
+    if (!requireAction('openVisit')) return false;
     const now = new Date();
     const todayKey = getLocalDateKey(now);
     
@@ -329,6 +410,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateVisitStatus = async (visitId: string, newStatus: string, additionalData: any = {}) => {
+    if (!requireAction('updateVisit')) throw new Error('PERMISSION_DENIED');
     const visit = visits.find(v => v.id === visitId);
     if (!visit) return;
     try {
@@ -354,6 +436,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateVaccineStock = async (vaccineId: string, newStock: number) => {
+    if (!requireAction('updateStock')) throw new Error('PERMISSION_DENIED');
     try {
       await updateDoc(doc(db, 'vaccines', vaccineId), removeUndefinedDeep({ stock: newStock }));
       await writeAuditLog('vaccine.updateStock', 'vaccine', vaccineId, { newStock });
@@ -370,6 +453,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addVaccine = async (vaccine: Vaccine) => {
+    if (!requireAction('manageVaccine')) throw new Error('PERMISSION_DENIED');
     try {
       await setDoc(doc(db, 'vaccines', vaccine.id), removeUndefinedDeep(vaccine));
       await writeAuditLog('vaccine.add', 'vaccine', vaccine.id, { name: vaccine.name, stock: vaccine.stock });
@@ -380,6 +464,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateVaccine = async (vaccineId: string, vaccineData: Partial<Vaccine>) => {
+    if (!requireAction('manageVaccine')) throw new Error('PERMISSION_DENIED');
     try {
       await updateDoc(doc(db, 'vaccines', vaccineId), removeUndefinedDeep(vaccineData));
       await writeAuditLog('vaccine.update', 'vaccine', vaccineId, { fields: Object.keys(vaccineData) });
@@ -390,6 +475,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteVaccine = async (vaccineId: string) => {
+    if (!requireAction('manageVaccine')) throw new Error('PERMISSION_DENIED');
     try {
       // In a real app we might want to soft delete or check for dependencies
       // For this HIS app, we'll do a simple delete for now
@@ -403,6 +489,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const voidVisit = async (visitId: string) => {
+    if (!requireAction('voidVisit')) throw new Error('PERMISSION_DENIED');
     try {
       await updateDoc(doc(db, 'visits', visitId), removeUndefinedDeep({ status: 'VOID' }));
       await writeAuditLog('visit.void', 'visit', visitId);
@@ -413,6 +500,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resetSystem = async () => {
+    if (!requireAction('resetSystem')) throw new Error('PERMISSION_DENIED');
     try {
       const { deleteDoc, getDocs, collection } = await import('firebase/firestore');
       
@@ -455,6 +543,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateOpdCoverLayout = async (layout: OpdCoverLayout) => {
+    if (!requireAction('updateOpdCoverLayout')) throw new Error('PERMISSION_DENIED');
     try {
       await setDoc(doc(db, 'metadata', 'opdCoverLayout'), removeUndefinedDeep({
         layout: normalizeOpdCoverLayout(layout),
@@ -472,6 +561,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const dispenseVisitWithStock = async (visitId: string, dispenseData: any, orders: any[]) => {
+    if (!requireAction('updateStock')) throw new Error('PERMISSION_DENIED');
     const visitRef = doc(db, 'visits', visitId);
     const items = Array.isArray(dispenseData?.items) ? dispenseData.items : [];
 
@@ -531,6 +621,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       user, isAuthReady, login, logout,
+      userRole, userRoles, isRoleReady, hasRole, canAccessRoute, canPerformAction, requireAction,
       patients, visits, vaccines, auditLogs, opdCoverLayout,
       activeVisitId, setActiveVisitId,
       modalConfig, setModalConfig,

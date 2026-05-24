@@ -40,7 +40,7 @@ const STEPS = [
 const DOSE_OPTIONS = ['1', '2', '3', 'เข็มกระตุ้น', 'ไม่ระบุเข็ม'];
 
 export default function VisitHistory() {
-  const { visits, patients, updateVisitStatus, setModalConfig, setActiveVisitId } = useAppContext();
+  const { visits, patients, updateVisitStatus, setModalConfig, setActiveVisitId, requireAction } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const navigate = useNavigate();
@@ -57,6 +57,7 @@ export default function VisitHistory() {
   }, [visits, searchTerm]);
 
   const handleRewind = (visit: Visit, targetStatus: VisitStatus) => {
+    if (!requireAction('rewindVisit')) return;
     setModalConfig({
       isOpen: true,
       type: 'confirm',
@@ -115,6 +116,7 @@ export default function VisitHistory() {
   };
 
   const handleDoseEdit = async (visit: Visit, orderIndex: number, selectedDose: string) => {
+    if (!requireAction('editCompletedDose')) return;
     const orders = Array.isArray(visit.data?.orders) ? visit.data.orders : [];
     const targetOrder = orders[orderIndex];
     if (!targetOrder || !selectedDose) return;
@@ -162,19 +164,29 @@ export default function VisitHistory() {
       dispensedItems: updateLinkedDose(Array.isArray(visit.data?.dispensedItems) ? visit.data.dispensedItems : []),
       injectionRecords: updateLinkedDose(Array.isArray(visit.data?.injectionRecords) ? visit.data.injectionRecords : []),
     });
+    const previousLabel = formatDoseNumber(targetOrder.doseNumber, targetOrder.doseLabel) || 'ไม่ระบุเข็ม';
+    const nextLabel = /^\d+$/.test(selectedDose) ? `เข็มที่ ${selectedDose}` : selectedDose;
 
-    try {
-      await updateVisitStatus(visit.id, visit.status, updatedData);
-      setSelectedVisit({ ...visit, data: updatedData });
-      setModalConfig({
-        isOpen: true,
-        type: 'alert',
-        title: 'บันทึกเข็มเรียบร้อย',
-        message: 'แก้ไขเข็มของรายการวัคซีนแล้ว โดยไม่เปลี่ยนยอดเงินหรือสต็อก'
-      });
-    } catch (error) {
-      console.error(error);
-    }
+    setModalConfig({
+      isOpen: true,
+      type: 'confirm',
+      title: 'ยืนยันการแก้ไขเข็ม',
+      message: `ต้องการแก้ไขเข็มของ ${targetOrder.name || '-'} จาก ${previousLabel} เป็น ${nextLabel} ใช่หรือไม่? การแก้ไขนี้จะถูกบันทึกใน Audit Log`,
+      onConfirm: async () => {
+        try {
+          await updateVisitStatus(visit.id, visit.status, updatedData);
+          setSelectedVisit({ ...visit, data: updatedData });
+          setModalConfig({
+            isOpen: true,
+            type: 'alert',
+            title: 'บันทึกเข็มเรียบร้อย',
+            message: 'แก้ไขเข็มของรายการวัคซีนแล้ว โดยไม่เปลี่ยนยอดเงินหรือสต็อก'
+          });
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    });
   };
 
   const renderDoseEditor = (visit: Visit) => {

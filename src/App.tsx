@@ -21,6 +21,7 @@ import Dispense from './pages/Dispense';
 import Injection from './pages/Injection';
 import DataManagement from './pages/DataManagement';
 import VisitHistory from './pages/VisitHistory';
+import { getDefaultRouteForRoles } from './utils/permissions';
 
 const SidebarItem = ({ path, icon: Icon, label, isActive, onClick }: { path: string, icon: any, label: string, isActive: boolean, onClick: () => void }) => {
   return (
@@ -38,8 +39,35 @@ const SidebarItem = ({ path, icon: Icon, label, isActive, onClick }: { path: str
   );
 };
 
+const AccessDenied = ({ user, logout }: { user: any; logout: () => void }) => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-8 max-w-xl w-full text-center space-y-4">
+      <div className="mx-auto w-14 h-14 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
+        <X size={28} />
+      </div>
+      <h1 className="text-2xl font-black text-gray-900">ไม่มีสิทธิ์ใช้งานระบบ</h1>
+      <p className="text-gray-600">บัญชีนี้ยังไม่ได้รับ role หรือถูกปิดการใช้งาน กรุณาติดต่อ Admin เพื่อสร้างเอกสาร userRoles ใน Firebase</p>
+      <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 text-left">
+        <div>UID: {user?.uid || '-'}</div>
+        <div>Email: {user?.email || '-'}</div>
+      </div>
+      <button onClick={logout} className="px-5 py-2.5 rounded-lg bg-gray-900 text-white font-bold hover:bg-gray-800">
+        ออกจากระบบ
+      </button>
+    </div>
+  </div>
+);
+
+const ProtectedRoute = ({ path, children }: { path: string; children: React.ReactNode }) => {
+  const { canAccessRoute, userRoles } = useAppContext();
+  if (!canAccessRoute(path)) {
+    return <Navigate to={getDefaultRouteForRoles(userRoles)} replace />;
+  }
+  return <>{children}</>;
+};
+
 export default function App() {
-  const { user, isAuthReady, login, logout } = useAppContext();
+  const { user, isAuthReady, isRoleReady, userRoles, login, logout, canAccessRoute } = useAppContext();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,6 +76,35 @@ export default function App() {
 
   if (!isAuthReady) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50">กำลังโหลด...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <CustomModal />
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-8 max-w-md w-full text-center space-y-5">
+          <div className="mx-auto w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+            <Syringe size={28} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-gray-900">Mini HIS</h1>
+            <p className="text-gray-500 mt-1">กรุณาเข้าสู่ระบบเพื่อใช้งานตามสิทธิ์ของตำแหน่งงาน</p>
+          </div>
+          <button onClick={login} className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 text-white font-bold px-5 py-3 hover:bg-blue-700">
+            <LogIn size={18} />
+            เข้าสู่ระบบด้วย Google
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isRoleReady) {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50">กำลังตรวจสอบสิทธิ์...</div>;
+  }
+
+  if (userRoles.length === 0) {
+    return <AccessDenied user={user} logout={logout} />;
   }
 
   // Full screen layout for Home page
@@ -69,6 +126,18 @@ export default function App() {
       </div>
     );
   }
+  const sidebarItems = [
+    { path: '/registration', icon: Plus, label: 'จุดลงทะเบียน' },
+    { path: '/screening', icon: Activity, label: 'คัดกรอง / ซักประวัติ' },
+    { path: '/doctor', icon: Stethoscope, label: 'ห้องตรวจแพทย์' },
+    { path: '/post-doctor', icon: CheckCircle, label: 'พยาบาลหลังพบแพทย์' },
+    { path: '/cashier', icon: CreditCard, label: 'การเงิน' },
+    { path: '/dispense', icon: Pill, label: 'ห้องจ่ายยา / คลัง' },
+    { path: '/injection', icon: Syringe, label: 'ห้องฉีดยา' },
+    { path: '/data-management', icon: BarChart3, label: 'จัดการข้อมูล' },
+    { path: '/vaccine-inventory', icon: Database, label: 'จัดการวัคซีน' },
+    { path: '/visit-history', icon: RotateCcw, label: 'ค้นหาและแก้ไขงาน' },
+  ].filter(item => canAccessRoute(item.path));
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
@@ -100,16 +169,17 @@ export default function App() {
         <div className="px-4 py-4 flex-1 overflow-y-auto">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">เมนูหลัก</p>
           <nav className="space-y-1">
-            <SidebarItem path="/registration" icon={Plus} label="จุดลงทะเบียน" isActive={location.pathname === '/registration'} onClick={() => { navigate('/registration'); setIsSidebarOpen(false); }} />
-            <SidebarItem path="/screening" icon={Activity} label="คัดกรอง / ซักประวัติ" isActive={location.pathname === '/screening'} onClick={() => { navigate('/screening'); setIsSidebarOpen(false); }} />
-            <SidebarItem path="/doctor" icon={Stethoscope} label="ห้องตรวจแพทย์" isActive={location.pathname === '/doctor'} onClick={() => { navigate('/doctor'); setIsSidebarOpen(false); }} />
-            <SidebarItem path="/post-doctor" icon={CheckCircle} label="พยาบาลหลังพบแพทย์" isActive={location.pathname === '/post-doctor'} onClick={() => { navigate('/post-doctor'); setIsSidebarOpen(false); }} />
-            <SidebarItem path="/cashier" icon={CreditCard} label="การเงิน" isActive={location.pathname === '/cashier'} onClick={() => { navigate('/cashier'); setIsSidebarOpen(false); }} />
-            <SidebarItem path="/dispense" icon={Pill} label="ห้องจ่ายยา / คลัง" isActive={location.pathname === '/dispense'} onClick={() => { navigate('/dispense'); setIsSidebarOpen(false); }} />
-            <SidebarItem path="/injection" icon={Syringe} label="ห้องฉีดยา" isActive={location.pathname === '/injection'} onClick={() => { navigate('/injection'); setIsSidebarOpen(false); }} />
-            <SidebarItem path="/data-management" icon={BarChart3} label="จัดการข้อมูล" isActive={location.pathname === '/data-management'} onClick={() => { navigate('/data-management'); setIsSidebarOpen(false); }} />
-            <SidebarItem path="/vaccine-inventory" icon={Database} label="จัดการวัคซีน" isActive={location.pathname === '/vaccine-inventory'} onClick={() => { navigate('/vaccine-inventory'); setIsSidebarOpen(false); }} />
-            <SidebarItem path="/visit-history" icon={RotateCcw} label="ค้นหาและแก้ไขงาน" isActive={location.pathname === '/visit-history'} onClick={() => { navigate('/visit-history'); setIsSidebarOpen(false); }} />
+            {sidebarItems.map(item => (
+              <React.Fragment key={item.path}>
+              <SidebarItem
+                path={item.path}
+                icon={item.icon}
+                label={item.label}
+                isActive={location.pathname === item.path}
+                onClick={() => { navigate(item.path); setIsSidebarOpen(false); }}
+              />
+              </React.Fragment>
+            ))}
           </nav>
         </div>
       </aside>
@@ -134,17 +204,17 @@ export default function App() {
         {/* Scrollable Content Area */}
         <main className="flex-1 overflow-auto p-6 md:p-8">
           <Routes>
-            <Route path="/vaccine-inventory" element={<Dashboard />} />
-            <Route path="/registration" element={<Registration />} />
-            <Route path="/screening" element={<Screening />} />
-            <Route path="/doctor" element={<Doctor />} />
-            <Route path="/post-doctor" element={<PostDoctor />} />
-            <Route path="/cashier" element={<Cashier />} />
-            <Route path="/dispense" element={<Dispense />} />
-            <Route path="/injection" element={<Injection />} />
-            <Route path="/data-management" element={<DataManagement />} />
-            <Route path="/visit-history" element={<VisitHistory />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/vaccine-inventory" element={<ProtectedRoute path="/vaccine-inventory"><Dashboard /></ProtectedRoute>} />
+            <Route path="/registration" element={<ProtectedRoute path="/registration"><Registration /></ProtectedRoute>} />
+            <Route path="/screening" element={<ProtectedRoute path="/screening"><Screening /></ProtectedRoute>} />
+            <Route path="/doctor" element={<ProtectedRoute path="/doctor"><Doctor /></ProtectedRoute>} />
+            <Route path="/post-doctor" element={<ProtectedRoute path="/post-doctor"><PostDoctor /></ProtectedRoute>} />
+            <Route path="/cashier" element={<ProtectedRoute path="/cashier"><Cashier /></ProtectedRoute>} />
+            <Route path="/dispense" element={<ProtectedRoute path="/dispense"><Dispense /></ProtectedRoute>} />
+            <Route path="/injection" element={<ProtectedRoute path="/injection"><Injection /></ProtectedRoute>} />
+            <Route path="/data-management" element={<ProtectedRoute path="/data-management"><DataManagement /></ProtectedRoute>} />
+            <Route path="/visit-history" element={<ProtectedRoute path="/visit-history"><VisitHistory /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to={getDefaultRouteForRoles(userRoles)} replace />} />
           </Routes>
         </main>
       </div>

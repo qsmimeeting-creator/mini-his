@@ -88,7 +88,8 @@ export default function Registration() {
     opdCoverLayout,
     updateOpdCoverLayout,
     resetOpdCoverLayout,
-    setModalConfig
+    setModalConfig,
+    canPerformAction
   } = useAppContext();
   const [errors, setErrors] = useState<{ cid?: string; dob?: string; passport?: string }>({});
   const [activeTab, setActiveTab] = useState<'register' | 'master' | 'opd-settings'>('register');
@@ -456,10 +457,21 @@ export default function Registration() {
   const handleDeletePatient = (patient: Patient) => {
     setModalConfig({
       isOpen: true,
-      type: 'confirm',
-      title: 'ยืนยันการลบ',
-      message: `คุณต้องการลบข้อมูลผู้ป่วย ${patient.name} ใช่หรือไม่?`,
-      onConfirm: async () => {
+      type: 'prompt',
+      title: 'ยืนยันการลบข้อมูลผู้ป่วย',
+      message: `การลบข้อมูลของ ${patient.name} ไม่สามารถกู้คืนได้ หากต้องการดำเนินการต่อให้พิมพ์ HN ${patient.hn} หรือ DELETE`,
+      defaultValue: '',
+      onConfirm: async (value) => {
+        const confirmed = (value || '').trim();
+        if (confirmed !== patient.hn && confirmed !== 'DELETE') {
+          setModalConfig({
+            isOpen: true,
+            type: 'alert',
+            title: 'ยกเลิกการลบข้อมูล',
+            message: 'ข้อความยืนยันไม่ถูกต้อง ระบบยังไม่ลบข้อมูลผู้ป่วย'
+          });
+          return;
+        }
         try {
           await deletePatient(patient.id);
           setModalConfig({
@@ -517,6 +529,7 @@ export default function Registration() {
           <Users size={18} />
           รายชื่อผู้ป่วยที่ลงทะเบียนแล้ว (Master Data)
         </button>
+        {canPerformAction('updateOpdCoverLayout') && (
         <button
           onClick={() => setActiveTab('opd-settings')}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -528,6 +541,7 @@ export default function Registration() {
           <SlidersHorizontal size={18} />
           ตั้งค่าหน้าปก OPD
         </button>
+        )}
       </div>
 
       {activeTab === 'register' && (
@@ -563,7 +577,7 @@ export default function Registration() {
         />
       )}
 
-      {activeTab === 'opd-settings' && (
+      {activeTab === 'opd-settings' && canPerformAction('updateOpdCoverLayout') && (
         <OpdCoverSettings
           layout={opdCoverLayout}
           onSave={handleSaveOpdCoverLayout}

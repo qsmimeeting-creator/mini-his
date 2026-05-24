@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAppContext } from '../context/AppContext';
 import { 
   Plus, Activity, Stethoscope, CheckCircle, 
   CreditCard, Pill, Syringe, BarChart3, Database 
@@ -35,6 +36,7 @@ const MenuCard: React.FC<MenuCardProps> = ({ title, subtitle, icon: Icon, color,
 };
 
 export default function Home() {
+  const { canAccessRoute } = useAppContext();
   const menus = [
     {
       title: 'จุดลงทะเบียน',
@@ -99,7 +101,7 @@ export default function Home() {
       color: 'bg-cyan-600',
       path: '/vaccine-inventory'
     }
-  ];
+  ].filter(menu => canAccessRoute(menu.path));
 
   return (
     <div className="max-w-6xl mx-auto py-8">

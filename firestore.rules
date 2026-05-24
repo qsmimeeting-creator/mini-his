@@ -1,52 +1,81 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper Functions
-    function isAuthenticated() {
-      return true; // Allow public access for demo purposes without login
+    function signedIn() {
+      return request.auth != null;
     }
-    
-    function hasRequiredFields(fields) {
-      return request.resource.data.keys().hasAll(fields);
+
+    function rolePath() {
+      return /databases/$(database)/documents/userRoles/$(request.auth.uid);
     }
-    
-    function isValidPatient(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.cid is string && data.cid.size() == 13 &&
-             data.hn is string && data.hn.size() > 0 && data.hn.size() < 20 &&
-             data.dob is string && data.dob.size() > 0 && data.dob.size() < 20;
+
+    function hasRoleDoc() {
+      return signedIn() && exists(rolePath());
     }
-    
-    function isValidVisit(data) {
-      return data.vn is string && data.vn.size() > 0 && data.vn.size() < 20 &&
-             data.patientId is string && data.patientId.size() > 0 && data.patientId.size() < 50 &&
-             data.patientName is string && data.patientName.size() > 0 && data.patientName.size() < 100 &&
-             data.status is string && data.status.size() > 0 && data.status.size() < 50 &&
-             data.timestamp is string && data.timestamp.size() > 0 && data.timestamp.size() < 50 &&
-             data.data is map;
+
+    function userRole() {
+      return get(rolePath()).data;
     }
-    
-    function isValidVaccine(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.price is number && data.price >= 0 &&
-             data.stock is number && data.stock >= 0 &&
-             data.lot is string && data.lot.size() > 0 && data.lot.size() < 50;
+
+    function isActiveUser() {
+      return hasRoleDoc() && userRole().active == true && userRole().roles is list;
+    }
+
+    function hasAnyRole(roles) {
+      return isActiveUser() && (userRole().roles.hasAny(['admin']) || userRole().roles.hasAny(roles));
+    }
+
+    function isAdmin() {
+      return hasAnyRole(['admin']);
+    }
+
+    match /userRoles/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create, update, delete: if isAdmin();
     }
 
     match /patients/{patientId} {
-      allow read, write: if true;
+      allow read: if isActiveUser();
+      allow create, update: if hasAnyRole(['register', 'nurse']);
+      allow delete: if isAdmin();
     }
-    
+
     match /visits/{visitId} {
-      allow read, write: if true;
+      allow read: if isActiveUser();
+      allow create: if hasAnyRole(['register']);
+      allow update: if hasAnyRole(['nurse', 'doctor', 'cashier', 'stock'])
+        && (
+          request.resource.data.status != 'VOID'
+          || hasAnyRole(['nurse'])
+        );
+      allow delete: if isAdmin();
     }
-    
+
     match /vaccines/{vaccineId} {
-      allow read, write: if true;
+      allow read: if isActiveUser();
+      allow create, update, delete: if hasAnyRole(['stock']);
+    }
+
+    match /auditLogs/{auditLogId} {
+      allow read: if hasAnyRole(['report']);
+      allow create: if isActiveUser()
+        && request.resource.data.createdAt is string
+        && request.resource.data.action is string
+        && request.resource.data.targetType is string;
+      allow update, delete: if false;
     }
 
     match /metadata/{documentId} {
-      allow read, write: if true;
+      allow read: if isActiveUser();
+      allow create, update: if (
+        documentId == 'counters' && hasAnyRole(['register'])
+      ) || (
+        documentId == 'opdCoverLayout' && isAdmin()
+      ) || (
+        isAdmin()
+      );
+      allow delete: if isAdmin();
     }
   }
 }

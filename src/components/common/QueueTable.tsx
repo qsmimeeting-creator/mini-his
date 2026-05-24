@@ -33,10 +33,20 @@ export const QueueTable = ({ title, tabs }: {
   const handleVoid = (visit: Visit) => {
     setModalConfig({
       isOpen: true,
-      type: 'confirm',
-      title: 'ยืนยันการยกเลิก',
-      message: `คุณต้องการยกเลิกการรับบริการของ ${visit.patientName} ใช่หรือไม่?`,
-      onConfirm: async () => {
+      type: 'prompt',
+      title: 'ยืนยันการยกเลิก Visit',
+      message: `การยกเลิก Visit ของ ${visit.patientName} ไม่ควรทำถ้าไม่จำเป็น หากต้องการดำเนินการต่อให้พิมพ์ VN: ${visit.vn}`,
+      defaultValue: '',
+      onConfirm: async (value) => {
+        if ((value || '').trim() !== visit.vn) {
+          setModalConfig({
+            isOpen: true,
+            type: 'alert',
+            title: 'ยกเลิกการทำรายการ',
+            message: 'VN ที่พิมพ์ไม่ตรง ระบบยังไม่ยกเลิก Visit'
+          });
+          return;
+        }
         try {
           await voidVisit(visit.id);
           setModalConfig({
