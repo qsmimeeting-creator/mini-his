@@ -7,7 +7,7 @@ import {
   normalizeUsername,
   verifyAdminRequest,
   writeAuditLog,
-} from '../_firebaseAdmin';
+} from '../_firebaseAdmin.js';
 
 type ApiRequest = {
   method?: string;
