@@ -10,6 +10,7 @@ import { OpdCoverSettings } from '../components/registration/OpdCoverSettings';
 import { EditPatientModal } from '../components/registration/EditPatientModal';
 import { OpenVisitModal } from '../components/common/OpenVisitModal';
 import { getOpdCoverLayoutSignature } from '../utils/opdCoverLayout';
+import { buildPatientStickerPdf } from '../utils/patientStickerPdf';
 import type { OpdCoverLayout } from '../utils/opdCoverLayout';
 
 const MOCK_OPD_COVER_PATIENT: Patient = {
@@ -32,17 +33,6 @@ const MOCK_OPD_COVER_PATIENT: Patient = {
   underlyingDisease: '',
   nationality: 'ไทย'
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-
-const getPatientDisplayName = (patient: Patient) =>
-  (patient.name || `${patient.title || ''} ${patient.firstName || ''} ${patient.lastName || ''}`).replace(/\s+/g, ' ').trim() || '-';
 
 const parseIsoDateOnly = (value?: string) => {
   if (!value) return null;
@@ -327,8 +317,8 @@ export default function Registration() {
     await openOpdCoverPdf(patient, opdCoverLayout, true);
   };
 
-  const handlePrintPatientSticker = (patient: Patient) => {
-    const printWindow = window.open('', '_blank', 'width=420,height=260');
+  const handlePrintPatientSticker = async (patient: Patient) => {
+    const printWindow = window.open('', '_blank');
     if (!printWindow) {
       setModalConfig({
         isOpen: true,
@@ -339,143 +329,33 @@ export default function Registration() {
       return;
     }
 
-    const hn = escapeHtml(patient.hn || '-');
-    const name = escapeHtml(getPatientDisplayName(patient));
-    printWindow.document.write(`
-      <!doctype html>
-      <html lang="th">
-        <head>
-          <meta charset="utf-8" />
-          <title>Patient Sticker ${hn}</title>
-          <style>
-            @page {
-              size: 70mm 35mm;
-              margin: 0;
-            }
-            * {
-              box-sizing: border-box;
-            }
-            html,
-            body {
-              width: 70mm;
-              height: 35mm;
-              margin: 0;
-              padding: 0;
-              background: #fff;
-              color: #000;
-              font-family: Sarabun, Tahoma, Arial, sans-serif;
-            }
-            .sticker {
-              width: 70mm;
-              height: 35mm;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              gap: 1.5mm;
-              padding: 2mm 3mm;
-              overflow: hidden;
-              text-align: center;
-            }
-            .hn {
-              width: 100%;
-              font-size: 20pt;
-              font-weight: 700;
-              line-height: 1.12;
-              white-space: nowrap;
-            }
-            .name {
-              width: 100%;
-              font-size: 16pt;
-              font-weight: 700;
-              line-height: 1.18;
-              white-space: nowrap;
-              overflow: visible;
-            }
-            @media print {
-              body {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="sticker">
-            <div class="hn">HN. ${hn}</div>
-            <div class="name">${name}</div>
-          </div>
-          <script>
-            function fitText(element, minSize) {
-              var currentSize = parseFloat(window.getComputedStyle(element).fontSize);
-              while (element.scrollWidth > element.clientWidth && currentSize > minSize) {
-                currentSize -= 1;
-                element.style.fontSize = currentSize + 'px';
-              }
-            }
-
-            function isStickerOverflowing(sticker) {
-              return sticker.scrollHeight > sticker.clientHeight || sticker.scrollWidth > sticker.clientWidth;
-            }
-
-            function shrinkPair(hn, name, minHnSize, minNameSize) {
-              var hnSize = parseFloat(window.getComputedStyle(hn).fontSize);
-              var nameSize = parseFloat(window.getComputedStyle(name).fontSize);
-              if (nameSize > minNameSize) {
-                name.style.fontSize = (nameSize - 1) + 'px';
-                return true;
-              }
-              if (hnSize > minHnSize) {
-                hn.style.fontSize = (hnSize - 1) + 'px';
-                return true;
-              }
-              return false;
-            }
-
-            function fitSticker() {
-              var sticker = document.querySelector('.sticker');
-              var hn = document.querySelector('.hn');
-              var name = document.querySelector('.name');
-              fitText(hn, 16);
-              fitText(name, 13);
-
-              if (name.scrollWidth > name.clientWidth) {
-                name.style.whiteSpace = 'normal';
-                name.style.lineHeight = '1.08';
-                name.style.overflow = 'visible';
-                fitText(name, 12);
-              }
-
-              var attempts = 0;
-              while (isStickerOverflowing(sticker) && attempts < 30) {
-                if (attempts === 10) {
-                  sticker.style.gap = '1mm';
-                  sticker.style.paddingTop = '1.5mm';
-                  sticker.style.paddingBottom = '1.5mm';
-                }
-                if (!shrinkPair(hn, name, 15, 11)) break;
-                attempts += 1;
-              }
-            }
-
-            window.addEventListener('load', function () {
-              window.focus();
-              setTimeout(function () {
-                fitSticker();
-                requestAnimationFrame(function () {
-                  setTimeout(function () {
-                    window.print();
-                  }, 50);
-                });
-              }, 150);
-            });
-          </script>
-        </body>
-      </html>
-    `);
+    printWindow.document.write('<p style="font-family: Sarabun, Tahoma, sans-serif; padding: 24px;">กำลังสร้างสติ๊กเกอร์...</p>');
     printWindow.document.close();
-  };
 
+    try {
+      const pdfBytes = await buildPatientStickerPdf(patient);
+      const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      printWindow.location.href = pdfUrl;
+      window.setTimeout(() => {
+        try {
+          printWindow.focus();
+          printWindow.print();
+        } catch {
+          // Some PDF viewers block scripted print; the PDF tab remains open for manual printing.
+        }
+      }, 1000);
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
+    } catch (error) {
+      printWindow.close();
+      setModalConfig({
+        isOpen: true,
+        type: 'alert',
+        title: 'ไม่สามารถพิมพ์สติ๊กเกอร์ได้',
+        message: error instanceof Error ? error.message : 'กรุณาลองใหม่อีกครั้ง'
+      });
+    }
+  };
   const handlePreviewOpdCover = async (layout: OpdCoverLayout) => {
     await openOpdCoverPdf(sortedPatients[0] || MOCK_OPD_COVER_PATIENT, layout, false);
   };
@@ -737,3 +617,4 @@ export default function Registration() {
     </div>
   );
 }
+

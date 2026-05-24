@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/opd-cover/print.ts": {
+      "includeFiles": "public/{templates,fonts}/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",
