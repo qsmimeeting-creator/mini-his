@@ -266,35 +266,12 @@ export default function Registration() {
     printWindow.document.close();
 
     try {
-      let pdfBlob: Blob | null = null;
-
-      try {
-        const response = await fetch('/api/opd-cover/print', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ patient, layout })
-        });
-
-        if (!response.ok) {
-          throw new Error('OPD API ยังไม่พร้อมใช้งาน');
-        }
-
-        const responseLayoutSignature = response.headers.get('X-OPD-Cover-Layout-Signature');
-        const responseLayoutSource = response.headers.get('X-OPD-Cover-Layout-Source');
-        if (responseLayoutSource !== 'request' || responseLayoutSignature !== expectedLayoutSignature) {
-          throw new Error('OPD API ยังไม่ได้ใช้ค่าปรับล่าสุด');
-        }
-
-        pdfBlob = await response.blob();
-      } catch (apiError) {
-        console.warn('Falling back to client-side OPD PDF generation:', apiError);
-        const clientPdf = await buildOpdCoverPdfClient(patient, layout);
-        if (clientPdf.layoutSignature !== expectedLayoutSignature) {
-          throw new Error('ไม่สามารถใช้ค่าตั้งค่าหน้าปก OPD ล่าสุดได้');
-        }
-        pdfBlob = new Blob([clientPdf.bytes], { type: 'application/pdf' });
+      const clientPdf = await buildOpdCoverPdfClient(patient, layout);
+      if (clientPdf.layoutSignature !== expectedLayoutSignature) {
+        throw new Error('ไม่สามารถใช้ค่าตั้งค่าหน้าปก OPD ล่าสุดได้');
       }
 
+      const pdfBlob = new Blob([clientPdf.bytes], { type: 'application/pdf' });
       const pdfUrl = URL.createObjectURL(pdfBlob);
       printWindow.location.href = pdfUrl;
       if (shouldPrint) {
