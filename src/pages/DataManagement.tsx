@@ -201,7 +201,7 @@ const exportToExcel = (rows: ReportRow[], metadata: { startDate: string; endDate
 export default function DataManagement() {
   const { visits, patients, resetSystem, setModalConfig } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
-  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-01'));
+  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
