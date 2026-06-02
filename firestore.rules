@@ -26,6 +26,14 @@ service cloud.firestore {
       return isActiveUser() && (userRole().roles.hasAny(['admin']) || userRole().roles.hasAny(roles));
     }
 
+    function hasPermission(permission) {
+      return isActiveUser()
+        && (
+          userRole().roles.hasAny(['admin'])
+          || (userRole().permissions is list && userRole().permissions.hasAny([permission]))
+        );
+    }
+
     function isAdmin() {
       return hasAnyRole(['admin']);
     }

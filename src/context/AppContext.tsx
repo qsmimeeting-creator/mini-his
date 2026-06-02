@@ -10,7 +10,7 @@ import {
   User
 } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, updateDoc, runTransaction, getDoc } from 'firebase/firestore';
-import { AuditLogEntry, Patient, UserRole, UserRoleProfile, Visit, Vaccine } from '../types';
+import { AuditLogEntry, Patient, UserPermission, UserRole, UserRoleProfile, Visit, Vaccine } from '../types';
 import { handleFirestoreError, OperationType } from '../utils/firestore';
 import { removeUndefinedDeep } from '../utils/firestoreData';
 import {
@@ -22,9 +22,10 @@ import { getLocalDateKey } from '../utils/visitDate';
 import { getOrderKey, getOrderQuantity, omitUndefinedFields } from '../utils/orderWorkflow';
 import {
   AppAction,
-  canAccessRouteWithRoles,
+  canAccessRouteWithAccess,
   canPerformActionWithRoles,
   normalizeRoles,
+  resolvePermissionsForRoles,
 } from '../utils/permissions';
 
 interface ModalConfig {
@@ -44,6 +45,7 @@ interface AppContextType {
   changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   userRole: UserRoleProfile | null;
   userRoles: UserRole[];
+  userPermissions: UserPermission[];
   userProfiles: UserRoleProfile[];
   isRoleReady: boolean;
   hasRole: (roles: UserRole | UserRole[]) => boolean;
@@ -85,6 +87,7 @@ export type CreateUserAccountInput = {
   firstname: string;
   surname: string;
   roles: UserRole[];
+  permissions: UserPermission[];
 };
 
 export type UpdateUserAccountInput = {
@@ -92,6 +95,7 @@ export type UpdateUserAccountInput = {
   firstname: string;
   surname: string;
   roles: UserRole[];
+  permissions: UserPermission[];
   active: boolean;
 };
 
@@ -137,6 +141,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const data = snapshot.data();
       const displayName = data.displayName || [data.firstname, data.surname].filter(Boolean).join(' ') || user.displayName || undefined;
+      const roles = normalizeRoles(data.roles);
       setUserRole({
         uid: user.uid,
         username: data.username,
@@ -144,7 +149,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         firstname: data.firstname,
         surname: data.surname,
         displayName,
-        roles: normalizeRoles(data.roles),
+        roles,
+        permissions: resolvePermissionsForRoles(roles, data.permissions),
         active: data.active === true,
         mustChangePassword: data.mustChangePassword === true,
         createdAt: data.createdAt,
@@ -162,13 +168,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user]);
 
   const userRoles = userRole?.active ? userRole.roles : [];
+  const userPermissions = userRole?.active ? userRole.permissions || [] : [];
 
   const hasRole = (roles: UserRole | UserRole[]) => {
     const allowedRoles = Array.isArray(roles) ? roles : [roles];
     return userRoles.includes('admin') || allowedRoles.some(role => userRoles.includes(role));
   };
 
-  const canAccessRoute = (path: string) => canAccessRouteWithRoles(userRoles, path);
+  const canAccessRoute = (path: string) => canAccessRouteWithAccess(userRoles, userPermissions, path);
 
   const canPerformAction = (action: AppAction) => canPerformActionWithRoles(userRoles, action);
 
@@ -285,6 +292,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return onSnapshot(collection(db, 'userRoles'), (snapshot) => {
       setUserProfiles(snapshot.docs.map(d => {
         const data = d.data();
+        const roles = normalizeRoles(data.roles);
         return {
           uid: d.id,
           username: data.username,
@@ -292,7 +300,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           firstname: data.firstname,
           surname: data.surname,
           displayName: data.displayName || [data.firstname, data.surname].filter(Boolean).join(' '),
-          roles: normalizeRoles(data.roles),
+          roles,
+          permissions: resolvePermissionsForRoles(roles, data.permissions),
           active: data.active === true,
           mustChangePassword: data.mustChangePassword === true,
           createdAt: data.createdAt,
@@ -301,7 +310,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } as UserRoleProfile;
       }));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'userRoles'));
-  }, [isAuthReady, user, isRoleReady, userRoles.join('|')]);
+  }, [isAuthReady, user, isRoleReady, userRoles.join('|'), userPermissions.join('|')]);
 
   const buildAuditLog = (
     action: string,
@@ -737,7 +746,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       user, isAuthReady, login, logout, changeOwnPassword,
-      userRole, userRoles, userProfiles, isRoleReady, hasRole, canAccessRoute, canPerformAction, requireAction,
+      userRole, userRoles, userPermissions, userProfiles, isRoleReady, hasRole, canAccessRoute, canPerformAction, requireAction,
       patients, visits, vaccines, auditLogs, opdCoverLayout,
       activeVisitId, setActiveVisitId,
       modalConfig, setModalConfig,

@@ -1,13 +1,26 @@
 import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
-import type { UserRole, UserRoleProfile } from '../../src/types';
+import type { UserPermission, UserRole, UserRoleProfile } from '../../src/types';
 
 type ApiRequest = {
   headers?: Record<string, string | string[] | undefined>;
 };
 
 const VALID_ROLES: UserRole[] = ['admin', 'register', 'nurse', 'doctor', 'cashier', 'stock', 'report'];
+const VALID_PERMISSIONS: UserPermission[] = [
+  'registration',
+  'screening',
+  'doctor',
+  'postDoctor',
+  'cashier',
+  'dispense',
+  'injection',
+  'dataManagement',
+  'vaccineInventory',
+  'visitHistory',
+  'userManagement',
+];
 const DEFAULT_FIREBASE_PROJECT_ID = 'gen-lang-client-0797723893';
 const DEFAULT_FIRESTORE_DATABASE_ID = 'ai-studio-77f96820-f2f6-47dc-be85-ff5a5b58b155';
 export const normalizeRoles = (roles: unknown): UserRole[] => {
@@ -15,6 +28,25 @@ export const normalizeRoles = (roles: unknown): UserRole[] => {
   return Array.from(new Set(roles.map(role => String(role || '').trim().toLowerCase() as UserRole)))
     .filter((role): role is UserRole => VALID_ROLES.includes(role));
 };
+
+export const normalizePermissions = (permissions: unknown): UserPermission[] => {
+  if (!Array.isArray(permissions)) return [];
+  return Array.from(new Set(permissions.map(permission => String(permission || '').trim() as UserPermission)))
+    .filter((permission): permission is UserPermission => VALID_PERMISSIONS.includes(permission));
+};
+
+const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, UserPermission[]> = {
+  admin: VALID_PERMISSIONS,
+  register: ['registration'],
+  nurse: ['screening', 'postDoctor', 'injection', 'visitHistory'],
+  doctor: ['doctor', 'visitHistory'],
+  cashier: ['cashier'],
+  stock: ['dispense', 'vaccineInventory'],
+  report: ['dataManagement'],
+};
+
+export const getDefaultPermissionsForRoles = (roles: UserRole[]) =>
+  normalizePermissions(roles.flatMap(role => ROLE_DEFAULT_PERMISSIONS[role] || []));
 
 const getHeader = (req: ApiRequest, name: string) => {
   const found = Object.entries(req.headers || {}).find(([key]) => key.toLowerCase() === name.toLowerCase());

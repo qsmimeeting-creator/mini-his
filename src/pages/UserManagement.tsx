@@ -1,19 +1,29 @@
 import React, { useMemo, useState } from 'react';
 import { KeyRound, RefreshCw, Save, UserPlus, Users } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
-import type { UserRole, UserRoleProfile } from '../types';
-import { ROLE_LABELS } from '../utils/permissions';
+import type { UserPermission, UserRole, UserRoleProfile } from '../types';
+import {
+  getDefaultPermissionsForRoles,
+  MENU_PERMISSION_LABELS,
+  MENU_PERMISSION_OPTIONS,
+  normalizePermissions,
+  ROLE_LABELS,
+} from '../utils/permissions';
 
 const ROLE_OPTIONS: UserRole[] = ['admin', 'register', 'nurse', 'doctor', 'cashier', 'stock', 'report'];
 
-const createEmptyCreateForm = () => ({
-  username: '',
-  password: '',
-  email: '',
-  firstname: '',
-  surname: '',
-  roles: ['register'] as UserRole[],
-});
+const createEmptyCreateForm = () => {
+  const roles: UserRole[] = ['register'];
+  return {
+    username: '',
+    password: '',
+    email: '',
+    firstname: '',
+    surname: '',
+    roles,
+    permissions: getDefaultPermissionsForRoles(roles),
+  };
+};
 
 const normalizeSelectedRoles = (roles: UserRole[]) =>
   ROLE_OPTIONS.filter(role => roles.includes(role));
@@ -21,49 +31,75 @@ const normalizeSelectedRoles = (roles: UserRole[]) =>
 const getProfileRoles = (profile: UserRoleProfile): UserRole[] =>
   normalizeSelectedRoles(profile.roles || []);
 
-type RoleCheckboxGroupProps = {
-  roles: UserRole[];
-  onChange: (roles: UserRole[]) => void;
+const getProfilePermissions = (profile: UserRoleProfile): UserPermission[] =>
+  normalizePermissions(profile.permissions).length > 0
+    ? normalizePermissions(profile.permissions)
+    : getDefaultPermissionsForRoles(getProfileRoles(profile));
+
+type CheckboxGroupProps<T extends string> = {
+  values: T[];
+  options: T[];
+  labels: Record<T, string>;
+  emptyText: string;
+  onChange: (values: T[]) => void;
   compact?: boolean;
+  badgeColor?: 'blue' | 'emerald';
 };
 
-function RoleBadges({ roles }: { roles: UserRole[] }) {
-  if (roles.length === 0) {
-    return <span className="text-xs font-bold text-red-600">ต้องเลือกอย่างน้อย 1 ตำแหน่ง</span>;
+function ValueBadges<T extends string>({
+  values,
+  labels,
+  emptyText,
+  badgeColor = 'blue',
+}: Pick<CheckboxGroupProps<T>, 'values' | 'labels' | 'emptyText' | 'badgeColor'>) {
+  if (values.length === 0) {
+    return <span className="text-xs font-bold text-red-600">{emptyText}</span>;
   }
+
+  const classes = badgeColor === 'emerald'
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+    : 'bg-blue-50 text-blue-700 border-blue-100';
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {roles.map(role => (
-        <span key={role} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 border border-blue-100">
-          {ROLE_LABELS[role]}
+      {values.map(value => (
+        <span key={value} className={`rounded-full px-2 py-0.5 text-xs font-bold border ${classes}`}>
+          {labels[value]}
         </span>
       ))}
     </div>
   );
 }
 
-function RoleCheckboxGroup({ roles, onChange, compact = false }: RoleCheckboxGroupProps) {
-  const toggleRole = (role: UserRole) => {
-    const nextRoles = roles.includes(role)
-      ? roles.filter(selectedRole => selectedRole !== role)
-      : [...roles, role];
-    onChange(normalizeSelectedRoles(nextRoles));
+function CheckboxGroup<T extends string>({
+  values,
+  options,
+  labels,
+  emptyText,
+  onChange,
+  compact = false,
+  badgeColor = 'blue',
+}: CheckboxGroupProps<T>) {
+  const toggleValue = (value: T) => {
+    const nextValues = values.includes(value)
+      ? values.filter(selectedValue => selectedValue !== value)
+      : [...values, value];
+    onChange(options.filter(option => nextValues.includes(option)));
   };
 
   return (
     <div className="space-y-2">
-      <RoleBadges roles={roles} />
-      <div className={compact ? 'grid grid-cols-2 gap-1.5 min-w-[220px]' : 'grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2'}>
-        {ROLE_OPTIONS.map(role => (
-          <label key={role} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-2 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+      <ValueBadges values={values} labels={labels} emptyText={emptyText} badgeColor={badgeColor} />
+      <div className={compact ? 'grid grid-cols-2 gap-1.5 min-w-[260px]' : 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2'}>
+        {options.map(option => (
+          <label key={option} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-2 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
             <input
               type="checkbox"
-              checked={roles.includes(role)}
-              onChange={() => toggleRole(role)}
+              checked={values.includes(option)}
+              onChange={() => toggleValue(option)}
               className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
-            <span>{ROLE_LABELS[role]}</span>
+            <span>{labels[option]}</span>
           </label>
         ))}
       </div>
@@ -86,6 +122,7 @@ export default function UserManagement() {
     firstname: string;
     surname: string;
     roles: UserRole[];
+    permissions: UserPermission[];
     active: boolean;
   }>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -98,20 +135,38 @@ export default function UserManagement() {
     setModalConfig({ isOpen: true, type: 'alert', title, message });
   };
 
-  const validateRoles = (roles: UserRole[]) => {
-    if (roles.length > 0) return true;
-    showAlert('กรุณาเลือกตำแหน่งงาน', 'ผู้ใช้งานต้องมีอย่างน้อย 1 ตำแหน่งงาน');
-    return false;
+  const mergeSuggestedPermissions = (currentPermissions: UserPermission[], roles: UserRole[]) =>
+    normalizePermissions([...currentPermissions, ...getDefaultPermissionsForRoles(roles)]);
+
+  const validateAccess = (roles: UserRole[], permissions: UserPermission[]) => {
+    if (roles.length === 0) {
+      showAlert('กรุณาเลือกตำแหน่งงาน', 'ผู้ใช้งานต้องมีอย่างน้อย 1 ตำแหน่งงาน');
+      return false;
+    }
+    if (permissions.length === 0) {
+      showAlert('กรุณาเลือกสิทธิ์เมนู', 'ผู้ใช้งานต้องมีอย่างน้อย 1 เมนูที่สามารถเข้าใช้งานได้');
+      return false;
+    }
+    return true;
+  };
+
+  const handleCreateRolesChange = (roles: UserRole[]) => {
+    setCreateForm(current => ({
+      ...current,
+      roles,
+      permissions: mergeSuggestedPermissions(current.permissions, roles),
+    }));
   };
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
     const roles = normalizeSelectedRoles(createForm.roles);
-    if (!validateRoles(roles)) return;
+    const permissions = normalizePermissions(createForm.permissions);
+    if (!validateAccess(roles, permissions)) return;
 
     setIsSubmitting(true);
     try {
-      await createUserAccount({ ...createForm, roles });
+      await createUserAccount({ ...createForm, roles, permissions });
       setCreateForm(createEmptyCreateForm());
       showAlert('สร้างผู้ใช้งานสำเร็จ', 'ผู้ใช้ใหม่สามารถเข้าสู่ระบบด้วย Username/Password ที่กำหนด และจะถูกบังคับให้เปลี่ยนรหัสผ่านครั้งแรก');
     } catch (error) {
@@ -126,6 +181,7 @@ export default function UserManagement() {
     firstname: profile.firstname || '',
     surname: profile.surname || '',
     roles: getProfileRoles(profile),
+    permissions: getProfilePermissions(profile),
     active: profile.active,
   };
 
@@ -139,14 +195,23 @@ export default function UserManagement() {
     }));
   };
 
+  const handleEditRolesChange = (profile: UserRoleProfile, roles: UserRole[]) => {
+    const form = getEditForm(profile);
+    setEditValue(profile, {
+      roles,
+      permissions: mergeSuggestedPermissions(form.permissions, roles),
+    });
+  };
+
   const handleSave = async (profile: UserRoleProfile) => {
     const form = getEditForm(profile);
     const roles = normalizeSelectedRoles(form.roles);
-    if (!validateRoles(roles)) return;
+    const permissions = normalizePermissions(form.permissions);
+    if (!validateAccess(roles, permissions)) return;
 
     setIsSubmitting(true);
     try {
-      await updateUserAccount(profile.uid, { ...form, roles });
+      await updateUserAccount(profile.uid, { ...form, roles, permissions });
       setEditing(prev => {
         const next = { ...prev };
         delete next[profile.uid];
@@ -189,7 +254,7 @@ export default function UserManagement() {
           <Users className="text-blue-600" />
           จัดการผู้ใช้งาน
         </h1>
-        <p className="text-gray-500 mt-1">สร้างบัญชี Username/Password และกำหนดสิทธิ์ได้หลายตำแหน่งงานต่อผู้ใช้หนึ่งคน</p>
+        <p className="text-gray-500 mt-1">สร้างบัญชี Username/Password กำหนดตำแหน่งงาน และเลือกสิทธิ์เมนูที่เข้าใช้งานได้โดยตรง</p>
       </div>
 
       <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
@@ -204,12 +269,31 @@ export default function UserManagement() {
           <input required className="border rounded-lg px-3 py-2" placeholder="Firstname" value={createForm.firstname} onChange={e => setCreateForm({ ...createForm, firstname: e.target.value })} />
           <input required className="border rounded-lg px-3 py-2" placeholder="Surname" value={createForm.surname} onChange={e => setCreateForm({ ...createForm, surname: e.target.value })} />
         </div>
-        <div className="mt-4">
-          <div className="mb-2 text-sm font-bold text-gray-700">ตำแหน่งงาน</div>
-          <RoleCheckboxGroup roles={createForm.roles} onChange={roles => setCreateForm({ ...createForm, roles })} />
+        <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div>
+            <div className="mb-2 text-sm font-bold text-gray-700">ตำแหน่งงาน</div>
+            <CheckboxGroup
+              values={createForm.roles}
+              options={ROLE_OPTIONS}
+              labels={ROLE_LABELS}
+              emptyText="ต้องเลือกอย่างน้อย 1 ตำแหน่ง"
+              onChange={handleCreateRolesChange}
+            />
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-bold text-gray-700">สิทธิ์เมนู</div>
+            <CheckboxGroup
+              values={createForm.permissions}
+              options={MENU_PERMISSION_OPTIONS}
+              labels={MENU_PERMISSION_LABELS}
+              emptyText="ต้องเลือกอย่างน้อย 1 เมนู"
+              badgeColor="emerald"
+              onChange={permissions => setCreateForm({ ...createForm, permissions })}
+            />
+          </div>
         </div>
         <div className="mt-4 flex justify-end">
-          <button disabled={isSubmitting || createForm.roles.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 text-white font-bold px-4 py-2 hover:bg-blue-700 disabled:opacity-50">
+          <button disabled={isSubmitting || createForm.roles.length === 0 || createForm.permissions.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 text-white font-bold px-4 py-2 hover:bg-blue-700 disabled:opacity-50">
             <UserPlus size={18} />
             สร้างผู้ใช้งาน
           </button>
@@ -225,7 +309,7 @@ export default function UserManagement() {
                 <th className="text-left px-4 py-3">Email</th>
                 <th className="text-left px-4 py-3">Firstname</th>
                 <th className="text-left px-4 py-3">Surname</th>
-                <th className="text-left px-4 py-3">ตำแหน่งงาน</th>
+                <th className="text-left px-4 py-3">ตำแหน่งงาน / สิทธิ์เมนู</th>
                 <th className="text-left px-4 py-3">สถานะ</th>
                 <th className="text-right px-4 py-3">จัดการ</th>
               </tr>
@@ -240,7 +324,31 @@ export default function UserManagement() {
                     <td className="px-4 py-3"><input className="border rounded-lg px-2 py-1 w-40" value={form.firstname} onChange={e => setEditValue(profile, { firstname: e.target.value })} /></td>
                     <td className="px-4 py-3"><input className="border rounded-lg px-2 py-1 w-40" value={form.surname} onChange={e => setEditValue(profile, { surname: e.target.value })} /></td>
                     <td className="px-4 py-3">
-                      <RoleCheckboxGroup roles={form.roles} compact onChange={roles => setEditValue(profile, { roles })} />
+                      <div className="space-y-4 min-w-[540px]">
+                        <div>
+                          <div className="mb-1 text-xs font-bold text-gray-500">ตำแหน่งงาน</div>
+                          <CheckboxGroup
+                            values={form.roles}
+                            options={ROLE_OPTIONS}
+                            labels={ROLE_LABELS}
+                            emptyText="ต้องเลือกอย่างน้อย 1 ตำแหน่ง"
+                            compact
+                            onChange={roles => handleEditRolesChange(profile, roles)}
+                          />
+                        </div>
+                        <div>
+                          <div className="mb-1 text-xs font-bold text-gray-500">สิทธิ์เมนู</div>
+                          <CheckboxGroup
+                            values={form.permissions}
+                            options={MENU_PERMISSION_OPTIONS}
+                            labels={MENU_PERMISSION_LABELS}
+                            emptyText="ต้องเลือกอย่างน้อย 1 เมนู"
+                            compact
+                            badgeColor="emerald"
+                            onChange={permissions => setEditValue(profile, { permissions })}
+                          />
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 space-y-2">
                       <label className="inline-flex items-center gap-2">
@@ -252,7 +360,7 @@ export default function UserManagement() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
-                        <button disabled={isSubmitting || form.roles.length === 0} onClick={() => handleSave(profile)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50">
+                        <button disabled={isSubmitting || form.roles.length === 0 || form.permissions.length === 0} onClick={() => handleSave(profile)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50">
                           <Save size={16} />
                           บันทึก
                         </button>

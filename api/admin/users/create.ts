@@ -2,7 +2,9 @@ import {
   adminAuth,
   adminDb,
   buildDisplayName,
+  getDefaultPermissionsForRoles,
   getRequestBody,
+  normalizePermissions,
   normalizeRoles,
   normalizeUsername,
   verifyAdminRequest,
@@ -29,6 +31,7 @@ type CreateUserBody = {
   surname: string;
   role?: string;
   roles: string[];
+  permissions: string[];
 };
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
@@ -49,8 +52,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const surname = String(body.surname || '').trim();
     const requestedRoles = normalizeRoles(body.roles);
     const roles = requestedRoles.length > 0 ? requestedRoles : normalizeRoles([body.role]);
+    const requestedPermissions = normalizePermissions(body.permissions);
+    const permissions = requestedPermissions.length > 0 ? requestedPermissions : getDefaultPermissionsForRoles(roles);
 
-    if (!username || !normalizedUsername || !password || !email || !firstname || !surname || roles.length === 0) {
+    if (!username || !normalizedUsername || !password || !email || !firstname || !surname || roles.length === 0 || permissions.length === 0) {
       res.status(400).json({ ok: false, message: 'กรุณากรอกข้อมูลผู้ใช้งานให้ครบถ้วน' });
       return;
     }
@@ -86,6 +91,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         surname,
         displayName,
         roles,
+        permissions,
         active: true,
         mustChangePassword: true,
         createdAt: now,
@@ -101,7 +107,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         updatedAt: now,
       });
 
-      await writeAuditLog('user.create', authUser.uid, actor, { username, roles });
+      await writeAuditLog('user.create', authUser.uid, actor, { username, roles, permissions });
       res.status(200).json({ ok: true, uid: authUser.uid });
     } catch (error) {
       if (createdUid) {

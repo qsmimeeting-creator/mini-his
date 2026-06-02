@@ -33,7 +33,7 @@ import Injection from './pages/Injection';
 import DataManagement from './pages/DataManagement';
 import VisitHistory from './pages/VisitHistory';
 import UserManagement from './pages/UserManagement';
-import { getDefaultRouteForRoles } from './utils/permissions';
+import { getDefaultRouteForAccess } from './utils/permissions';
 
 type SidebarItemProps = {
   icon: any;
@@ -175,15 +175,15 @@ const ForcePasswordChange = () => {
 };
 
 const ProtectedRoute = ({ path, children }: { path: string; children: React.ReactNode }) => {
-  const { canAccessRoute, userRoles } = useAppContext();
+  const { canAccessRoute, userRoles, userPermissions } = useAppContext();
   if (!canAccessRoute(path)) {
-    return <Navigate to={getDefaultRouteForRoles(userRoles)} replace />;
+    return <Navigate to={getDefaultRouteForAccess(userRoles, userPermissions)} replace />;
   }
   return <>{children}</>;
 };
 
 export default function App() {
-  const { user, isAuthReady, isRoleReady, userRole, userRoles, logout, canAccessRoute } = useAppContext();
+  const { user, isAuthReady, isRoleReady, userRole, userRoles, userPermissions, logout, canAccessRoute } = useAppContext();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -301,7 +301,7 @@ export default function App() {
             <Route path="/data-management" element={<ProtectedRoute path="/data-management"><DataManagement /></ProtectedRoute>} />
             <Route path="/visit-history" element={<ProtectedRoute path="/visit-history"><VisitHistory /></ProtectedRoute>} />
             <Route path="/user-management" element={<ProtectedRoute path="/user-management"><UserManagement /></ProtectedRoute>} />
-            <Route path="*" element={<Navigate to={getDefaultRouteForRoles(userRoles)} replace />} />
+            <Route path="*" element={<Navigate to={getDefaultRouteForAccess(userRoles, userPermissions)} replace />} />
           </Routes>
         </main>
       </div>

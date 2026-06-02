@@ -193,6 +193,19 @@ export interface AuditLogEntry {
 
 export type UserRole = 'admin' | 'register' | 'nurse' | 'doctor' | 'cashier' | 'stock' | 'report';
 
+export type UserPermission =
+  | 'registration'
+  | 'screening'
+  | 'doctor'
+  | 'postDoctor'
+  | 'cashier'
+  | 'dispense'
+  | 'injection'
+  | 'dataManagement'
+  | 'vaccineInventory'
+  | 'visitHistory'
+  | 'userManagement';
+
 export interface UserRoleProfile {
   uid: string;
   username?: string;
@@ -201,6 +214,7 @@ export interface UserRoleProfile {
   surname?: string;
   displayName?: string;
   roles: UserRole[];
+  permissions?: UserPermission[];
   active: boolean;
   mustChangePassword?: boolean;
   createdAt?: string;

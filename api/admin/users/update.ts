@@ -3,7 +3,9 @@ import {
   adminDb,
   buildDisplayName,
   countActiveAdmins,
+  getDefaultPermissionsForRoles,
   getRequestBody,
+  normalizePermissions,
   normalizeRoles,
   verifyAdminRequest,
   writeAuditLog,
@@ -28,6 +30,7 @@ type UpdateUserBody = {
   surname: string;
   role?: string;
   roles: string[];
+  permissions: string[];
   active: boolean;
 };
 
@@ -47,9 +50,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const surname = String(body.surname || '').trim();
     const requestedRoles = normalizeRoles(body.roles);
     const roles = requestedRoles.length > 0 ? requestedRoles : normalizeRoles([body.role]);
+    const requestedPermissions = normalizePermissions(body.permissions);
+    const permissions = requestedPermissions.length > 0 ? requestedPermissions : getDefaultPermissionsForRoles(roles);
     const active = body.active === true;
 
-    if (!uid || !email || !firstname || !surname || roles.length === 0) {
+    if (!uid || !email || !firstname || !surname || roles.length === 0 || permissions.length === 0) {
       res.status(400).json({ ok: false, message: 'กรุณากรอกข้อมูลผู้ใช้งานให้ครบถ้วน' });
       return;
     }
@@ -88,6 +93,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       surname,
       displayName,
       roles,
+      permissions,
       active,
       updatedAt: now,
       updatedBy: actor.uid,
@@ -102,7 +108,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }, { merge: true });
     }
 
-    await writeAuditLog('user.update', uid, actor, { roles, active });
+    await writeAuditLog('user.update', uid, actor, { roles, permissions, active });
     res.status(200).json({ ok: true });
   } catch (error: any) {
     console.error('Update user error:', error);
