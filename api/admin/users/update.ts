@@ -4,7 +4,7 @@ import {
   buildDisplayName,
   countActiveAdmins,
   getRequestBody,
-  normalizeRole,
+  normalizeRoles,
   verifyAdminRequest,
   writeAuditLog,
 } from '../_firebaseAdmin.js';
@@ -26,7 +26,8 @@ type UpdateUserBody = {
   email: string;
   firstname: string;
   surname: string;
-  role: string;
+  role?: string;
+  roles: string[];
   active: boolean;
 };
 
@@ -44,10 +45,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const email = String(body.email || '').trim();
     const firstname = String(body.firstname || '').trim();
     const surname = String(body.surname || '').trim();
-    const role = normalizeRole(body.role);
+    const requestedRoles = normalizeRoles(body.roles);
+    const roles = requestedRoles.length > 0 ? requestedRoles : normalizeRoles([body.role]);
     const active = body.active === true;
 
-    if (!uid || !email || !firstname || !surname || !role) {
+    if (!uid || !email || !firstname || !surname || roles.length === 0) {
       res.status(400).json({ ok: false, message: 'กรุณากรอกข้อมูลผู้ใช้งานให้ครบถ้วน' });
       return;
     }
@@ -59,7 +61,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
     const current = currentSnap.data() || {};
     const isCurrentAdmin = Array.isArray(current.roles) && current.roles.includes('admin') && current.active === true;
-    const willRemainAdmin = role === 'admin' && active;
+    const willRemainAdmin = roles.includes('admin') && active;
     if (isCurrentAdmin && !willRemainAdmin && await countActiveAdmins(uid) === 0) {
       res.status(400).json({ ok: false, message: 'ไม่สามารถปิดหรือเปลี่ยนสิทธิ์ Admin คนสุดท้ายได้' });
       return;
@@ -85,7 +87,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       firstname,
       surname,
       displayName,
-      roles: [role],
+      roles,
       active,
       updatedAt: now,
       updatedBy: actor.uid,
@@ -100,7 +102,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }, { merge: true });
     }
 
-    await writeAuditLog('user.update', uid, actor, { role, active });
+    await writeAuditLog('user.update', uid, actor, { roles, active });
     res.status(200).json({ ok: true });
   } catch (error: any) {
     console.error('Update user error:', error);

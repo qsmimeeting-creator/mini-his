@@ -84,14 +84,14 @@ export type CreateUserAccountInput = {
   email: string;
   firstname: string;
   surname: string;
-  role: UserRole;
+  roles: UserRole[];
 };
 
 export type UpdateUserAccountInput = {
   email: string;
   firstname: string;
   surname: string;
-  role: UserRole;
+  roles: UserRole[];
   active: boolean;
 };
 

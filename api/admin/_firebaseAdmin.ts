@@ -10,11 +10,10 @@ type ApiRequest = {
 const VALID_ROLES: UserRole[] = ['admin', 'register', 'nurse', 'doctor', 'cashier', 'stock', 'report'];
 const DEFAULT_FIREBASE_PROJECT_ID = 'gen-lang-client-0797723893';
 const DEFAULT_FIRESTORE_DATABASE_ID = 'ai-studio-77f96820-f2f6-47dc-be85-ff5a5b58b155';
-const normalizeRoles = (roles: unknown): UserRole[] => {
+export const normalizeRoles = (roles: unknown): UserRole[] => {
   if (!Array.isArray(roles)) return [];
-  return roles.filter((role): role is UserRole =>
-    VALID_ROLES.includes(String(role) as UserRole)
-  );
+  return Array.from(new Set(roles.map(role => String(role || '').trim().toLowerCase() as UserRole)))
+    .filter((role): role is UserRole => VALID_ROLES.includes(role));
 };
 
 const getHeader = (req: ApiRequest, name: string) => {
