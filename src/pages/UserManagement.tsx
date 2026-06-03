@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { KeyRound, RefreshCw, Save, UserPlus, Users } from 'lucide-react';
+import { Edit3, KeyRound, RefreshCw, Save, UserPlus, Users, X } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import type { UserPermission, UserRole, UserRoleProfile } from '../types';
 import {
@@ -12,7 +12,19 @@ import {
 
 const ROLE_OPTIONS: UserRole[] = ['admin', 'register', 'nurse', 'doctor', 'cashier', 'stock', 'report'];
 
-const createEmptyCreateForm = () => {
+type UserAccessForm = {
+  uid?: string;
+  username: string;
+  password: string;
+  email: string;
+  firstname: string;
+  surname: string;
+  roles: UserRole[];
+  permissions: UserPermission[];
+  active: boolean;
+};
+
+const createEmptyForm = (): UserAccessForm => {
   const roles: UserRole[] = ['register'];
   return {
     username: '',
@@ -22,6 +34,7 @@ const createEmptyCreateForm = () => {
     surname: '',
     roles,
     permissions: getDefaultPermissionsForRoles(roles),
+    active: true,
   };
 };
 
@@ -31,55 +44,68 @@ const normalizeSelectedRoles = (roles: UserRole[]) =>
 const getProfileRoles = (profile: UserRoleProfile): UserRole[] =>
   normalizeSelectedRoles(profile.roles || []);
 
-const getProfilePermissions = (profile: UserRoleProfile): UserPermission[] =>
-  normalizePermissions(profile.permissions).length > 0
-    ? normalizePermissions(profile.permissions)
-    : getDefaultPermissionsForRoles(getProfileRoles(profile));
-
-type CheckboxGroupProps<T extends string> = {
-  values: T[];
-  options: T[];
-  labels: Record<T, string>;
-  emptyText: string;
-  onChange: (values: T[]) => void;
-  compact?: boolean;
-  badgeColor?: 'blue' | 'emerald';
+const getProfilePermissions = (profile: UserRoleProfile): UserPermission[] => {
+  const permissions = normalizePermissions(profile.permissions);
+  return permissions.length > 0 ? permissions : getDefaultPermissionsForRoles(getProfileRoles(profile));
 };
 
-function ValueBadges<T extends string>({
-  values,
-  labels,
-  emptyText,
-  badgeColor = 'blue',
-}: Pick<CheckboxGroupProps<T>, 'values' | 'labels' | 'emptyText' | 'badgeColor'>) {
+const createFormFromProfile = (profile: UserRoleProfile): UserAccessForm => ({
+  uid: profile.uid,
+  username: profile.username || '',
+  password: '',
+  email: profile.email || '',
+  firstname: profile.firstname || '',
+  surname: profile.surname || '',
+  roles: getProfileRoles(profile),
+  permissions: getProfilePermissions(profile),
+  active: profile.active,
+});
+
+const mergeSuggestedPermissions = (currentPermissions: UserPermission[], roles: UserRole[]) =>
+  normalizePermissions([...currentPermissions, ...getDefaultPermissionsForRoles(roles)]);
+
+type BadgeListProps<T extends string> = {
+  values: T[];
+  labels: Record<T, string>;
+  color?: 'blue' | 'emerald';
+  limit?: number;
+};
+
+function BadgeList<T extends string>({ values, labels, color = 'blue', limit = 4 }: BadgeListProps<T>) {
   if (values.length === 0) {
-    return <span className="text-xs font-bold text-red-600">{emptyText}</span>;
+    return <span className="text-xs font-bold text-red-600">ยังไม่กำหนด</span>;
   }
 
-  const classes = badgeColor === 'emerald'
+  const visibleValues = values.slice(0, limit);
+  const hiddenCount = Math.max(values.length - visibleValues.length, 0);
+  const classes = color === 'emerald'
     ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
     : 'bg-blue-50 text-blue-700 border-blue-100';
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {values.map(value => (
+      {visibleValues.map(value => (
         <span key={value} className={`rounded-full px-2 py-0.5 text-xs font-bold border ${classes}`}>
           {labels[value]}
         </span>
       ))}
+      {hiddenCount > 0 && (
+        <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-bold text-gray-500">
+          +{hiddenCount}
+        </span>
+      )}
     </div>
   );
 }
 
-function CheckboxGroup<T extends string>({
-  values,
-  options,
-  labels,
-  emptyText,
-  onChange,
-  compact = false,
-  badgeColor = 'blue',
-}: CheckboxGroupProps<T>) {
+type CheckboxGridProps<T extends string> = {
+  values: T[];
+  options: T[];
+  labels: Record<T, string>;
+  onChange: (values: T[]) => void;
+};
+
+function CheckboxGrid<T extends string>({ values, options, labels, onChange }: CheckboxGridProps<T>) {
   const toggleValue = (value: T) => {
     const nextValues = values.includes(value)
       ? values.filter(selectedValue => selectedValue !== value)
@@ -88,21 +114,110 @@ function CheckboxGroup<T extends string>({
   };
 
   return (
-    <div className="space-y-2">
-      <ValueBadges values={values} labels={labels} emptyText={emptyText} badgeColor={badgeColor} />
-      <div className={compact ? 'grid grid-cols-2 gap-1.5 min-w-[260px]' : 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2'}>
-        {options.map(option => (
-          <label key={option} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-2 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-            <input
-              type="checkbox"
-              checked={values.includes(option)}
-              onChange={() => toggleValue(option)}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span>{labels[option]}</span>
-          </label>
-        ))}
-      </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      {options.map(option => (
+        <label key={option} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          <input
+            type="checkbox"
+            checked={values.includes(option)}
+            onChange={() => toggleValue(option)}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span>{labels[option]}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+type UserAccessModalProps = {
+  form: UserAccessForm;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onChange: (updates: Partial<UserAccessForm>) => void;
+  onSubmit: (event: React.FormEvent) => void;
+};
+
+function UserAccessModal({ form, isSubmitting, onClose, onChange, onSubmit }: UserAccessModalProps) {
+  const isEditing = Boolean(form.uid);
+
+  const handleRolesChange = (roles: UserRole[]) => {
+    onChange({
+      roles,
+      permissions: mergeSuggestedPermissions(form.permissions, roles),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4 backdrop-blur-sm">
+      <form onSubmit={onSubmit} className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+          <div>
+            <h2 className="text-xl font-black text-gray-900">{isEditing ? 'แก้ไขผู้ใช้งาน' : 'เพิ่มผู้ใช้งานใหม่'}</h2>
+            <p className="text-sm text-gray-500">กำหนดข้อมูลบัญชี ตำแหน่งงาน และสิทธิ์เมนู</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          <section>
+            <h3 className="mb-3 text-sm font-black text-gray-700">ข้อมูลผู้ใช้งาน</h3>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              <input required disabled={isEditing} className="rounded-lg border px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" placeholder="Username" value={form.username} onChange={e => onChange({ username: e.target.value })} />
+              {!isEditing && (
+                <input required className="rounded-lg border px-3 py-2" placeholder="Password" type="password" minLength={6} value={form.password} onChange={e => onChange({ password: e.target.value })} />
+              )}
+              <input required className="rounded-lg border px-3 py-2" placeholder="Email" type="email" value={form.email} onChange={e => onChange({ email: e.target.value })} />
+              <input required className="rounded-lg border px-3 py-2" placeholder="Firstname" value={form.firstname} onChange={e => onChange({ firstname: e.target.value })} />
+              <input required className="rounded-lg border px-3 py-2" placeholder="Surname" value={form.surname} onChange={e => onChange({ surname: e.target.value })} />
+              <label className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 font-semibold text-gray-700">
+                <input type="checkbox" checked={form.active} onChange={e => onChange({ active: e.target.checked })} />
+                ใช้งานบัญชีนี้
+              </label>
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+            <div className="rounded-xl border border-gray-200 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-black text-gray-700">ตำแหน่งงาน</h3>
+                <button type="button" onClick={() => handleRolesChange([])} className="text-xs font-bold text-gray-400 hover:text-gray-700">ล้าง</button>
+              </div>
+              <div className="mb-3">
+                <BadgeList values={form.roles} labels={ROLE_LABELS} />
+              </div>
+              <CheckboxGrid values={form.roles} options={ROLE_OPTIONS} labels={ROLE_LABELS} onChange={handleRolesChange} />
+            </div>
+
+            <div className="rounded-xl border border-gray-200 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-black text-gray-700">สิทธิ์เมนู</h3>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => onChange({ permissions: getDefaultPermissionsForRoles(form.roles) })} className="text-xs font-bold text-blue-600 hover:text-blue-800">ตามตำแหน่งงาน</button>
+                  <button type="button" onClick={() => onChange({ permissions: MENU_PERMISSION_OPTIONS })} className="text-xs font-bold text-emerald-600 hover:text-emerald-800">เลือกทั้งหมด</button>
+                  <button type="button" onClick={() => onChange({ permissions: [] })} className="text-xs font-bold text-gray-400 hover:text-gray-700">ล้าง</button>
+                </div>
+              </div>
+              <div className="mb-3">
+                <BadgeList values={form.permissions} labels={MENU_PERMISSION_LABELS} color="emerald" limit={5} />
+              </div>
+              <CheckboxGrid values={form.permissions} options={MENU_PERMISSION_OPTIONS} labels={MENU_PERMISSION_LABELS} onChange={permissions => onChange({ permissions })} />
+            </div>
+          </section>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-5 py-4">
+          <button type="button" onClick={onClose} className="rounded-lg bg-gray-100 px-4 py-2 font-bold text-gray-700 hover:bg-gray-200">
+            ยกเลิก
+          </button>
+          <button disabled={isSubmitting || form.roles.length === 0 || form.permissions.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700 disabled:opacity-50">
+            <Save size={18} />
+            {isEditing ? 'บันทึก' : 'สร้างผู้ใช้งาน'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -116,15 +231,7 @@ export default function UserManagement() {
     resetUserPassword,
     setModalConfig,
   } = useAppContext();
-  const [createForm, setCreateForm] = useState(createEmptyCreateForm);
-  const [editing, setEditing] = useState<Record<string, {
-    email: string;
-    firstname: string;
-    surname: string;
-    roles: UserRole[];
-    permissions: UserPermission[];
-    active: boolean;
-  }>>({});
+  const [accessForm, setAccessForm] = useState<UserAccessForm | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const sortedUsers = useMemo(() => [...userProfiles].sort((a, b) =>
@@ -134,9 +241,6 @@ export default function UserManagement() {
   const showAlert = (title: string, message: string) => {
     setModalConfig({ isOpen: true, type: 'alert', title, message });
   };
-
-  const mergeSuggestedPermissions = (currentPermissions: UserPermission[], roles: UserRole[]) =>
-    normalizePermissions([...currentPermissions, ...getDefaultPermissionsForRoles(roles)]);
 
   const validateAccess = (roles: UserRole[], permissions: UserPermission[]) => {
     if (roles.length === 0) {
@@ -150,76 +254,41 @@ export default function UserManagement() {
     return true;
   };
 
-  const handleCreateRolesChange = (roles: UserRole[]) => {
-    setCreateForm(current => ({
-      ...current,
-      roles,
-      permissions: mergeSuggestedPermissions(current.permissions, roles),
-    }));
-  };
-
-  const handleCreate = async (event: React.FormEvent) => {
+  const handleSubmitForm = async (event: React.FormEvent) => {
     event.preventDefault();
-    const roles = normalizeSelectedRoles(createForm.roles);
-    const permissions = normalizePermissions(createForm.permissions);
+    if (!accessForm) return;
+
+    const roles = normalizeSelectedRoles(accessForm.roles);
+    const permissions = normalizePermissions(accessForm.permissions);
     if (!validateAccess(roles, permissions)) return;
 
     setIsSubmitting(true);
     try {
-      await createUserAccount({ ...createForm, roles, permissions });
-      setCreateForm(createEmptyCreateForm());
-      showAlert('สร้างผู้ใช้งานสำเร็จ', 'ผู้ใช้ใหม่สามารถเข้าสู่ระบบด้วย Username/Password ที่กำหนด และจะถูกบังคับให้เปลี่ยนรหัสผ่านครั้งแรก');
+      if (accessForm.uid) {
+        await updateUserAccount(accessForm.uid, {
+          email: accessForm.email,
+          firstname: accessForm.firstname,
+          surname: accessForm.surname,
+          roles,
+          permissions,
+          active: accessForm.active,
+        });
+        showAlert('บันทึกผู้ใช้งานสำเร็จ', 'ข้อมูลผู้ใช้งานถูกอัปเดตแล้ว');
+      } else {
+        await createUserAccount({
+          username: accessForm.username,
+          password: accessForm.password,
+          email: accessForm.email,
+          firstname: accessForm.firstname,
+          surname: accessForm.surname,
+          roles,
+          permissions,
+        });
+        showAlert('สร้างผู้ใช้งานสำเร็จ', 'ผู้ใช้ใหม่สามารถเข้าสู่ระบบด้วย Username/Password ที่กำหนด และจะถูกบังคับให้เปลี่ยนรหัสผ่านครั้งแรก');
+      }
+      setAccessForm(null);
     } catch (error) {
-      showAlert('ไม่สามารถสร้างผู้ใช้งานได้', error instanceof Error ? error.message : 'เกิดข้อผิดพลาด');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const getEditForm = (profile: UserRoleProfile) => editing[profile.uid] || {
-    email: profile.email || '',
-    firstname: profile.firstname || '',
-    surname: profile.surname || '',
-    roles: getProfileRoles(profile),
-    permissions: getProfilePermissions(profile),
-    active: profile.active,
-  };
-
-  const setEditValue = (profile: UserRoleProfile, updates: Partial<ReturnType<typeof getEditForm>>) => {
-    setEditing(prev => ({
-      ...prev,
-      [profile.uid]: {
-        ...getEditForm(profile),
-        ...updates,
-      },
-    }));
-  };
-
-  const handleEditRolesChange = (profile: UserRoleProfile, roles: UserRole[]) => {
-    const form = getEditForm(profile);
-    setEditValue(profile, {
-      roles,
-      permissions: mergeSuggestedPermissions(form.permissions, roles),
-    });
-  };
-
-  const handleSave = async (profile: UserRoleProfile) => {
-    const form = getEditForm(profile);
-    const roles = normalizeSelectedRoles(form.roles);
-    const permissions = normalizePermissions(form.permissions);
-    if (!validateAccess(roles, permissions)) return;
-
-    setIsSubmitting(true);
-    try {
-      await updateUserAccount(profile.uid, { ...form, roles, permissions });
-      setEditing(prev => {
-        const next = { ...prev };
-        delete next[profile.uid];
-        return next;
-      });
-      showAlert('บันทึกผู้ใช้งานสำเร็จ', 'ข้อมูลผู้ใช้งานถูกอัปเดตแล้ว');
-    } catch (error) {
-      showAlert('ไม่สามารถบันทึกผู้ใช้งานได้', error instanceof Error ? error.message : 'เกิดข้อผิดพลาด');
+      showAlert(accessForm.uid ? 'ไม่สามารถบันทึกผู้ใช้งานได้' : 'ไม่สามารถสร้างผู้ใช้งานได้', error instanceof Error ? error.message : 'เกิดข้อผิดพลาด');
     } finally {
       setIsSubmitting(false);
     }
@@ -248,123 +317,68 @@ export default function UserManagement() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-black text-gray-900 flex items-center gap-3">
-          <Users className="text-blue-600" />
-          จัดการผู้ใช้งาน
-        </h1>
-        <p className="text-gray-500 mt-1">สร้างบัญชี Username/Password กำหนดตำแหน่งงาน และเลือกสิทธิ์เมนูที่เข้าใช้งานได้โดยตรง</p>
+    <div className="mx-auto max-w-7xl space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="flex items-center gap-3 text-2xl font-black text-gray-900">
+            <Users className="text-blue-600" />
+            จัดการผู้ใช้งาน
+          </h1>
+          <p className="mt-1 text-gray-500">จัดการบัญชี ตำแหน่งงาน และสิทธิ์เมนูของผู้ใช้งานในระบบ</p>
+        </div>
+        <button onClick={() => setAccessForm(createEmptyForm())} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-bold text-white shadow-sm hover:bg-blue-700">
+          <UserPlus size={18} />
+          เพิ่มผู้ใช้งาน
+        </button>
       </div>
 
-      <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
-        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-4">
-          <UserPlus size={20} className="text-blue-600" />
-          เพิ่มผู้ใช้งานใหม่
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
-          <input required className="border rounded-lg px-3 py-2" placeholder="Username" value={createForm.username} onChange={e => setCreateForm({ ...createForm, username: e.target.value })} />
-          <input required className="border rounded-lg px-3 py-2" placeholder="Password" type="password" minLength={6} value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} />
-          <input required className="border rounded-lg px-3 py-2" placeholder="Email" type="email" value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} />
-          <input required className="border rounded-lg px-3 py-2" placeholder="Firstname" value={createForm.firstname} onChange={e => setCreateForm({ ...createForm, firstname: e.target.value })} />
-          <input required className="border rounded-lg px-3 py-2" placeholder="Surname" value={createForm.surname} onChange={e => setCreateForm({ ...createForm, surname: e.target.value })} />
-        </div>
-        <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <div>
-            <div className="mb-2 text-sm font-bold text-gray-700">ตำแหน่งงาน</div>
-            <CheckboxGroup
-              values={createForm.roles}
-              options={ROLE_OPTIONS}
-              labels={ROLE_LABELS}
-              emptyText="ต้องเลือกอย่างน้อย 1 ตำแหน่ง"
-              onChange={handleCreateRolesChange}
-            />
-          </div>
-          <div>
-            <div className="mb-2 text-sm font-bold text-gray-700">สิทธิ์เมนู</div>
-            <CheckboxGroup
-              values={createForm.permissions}
-              options={MENU_PERMISSION_OPTIONS}
-              labels={MENU_PERMISSION_LABELS}
-              emptyText="ต้องเลือกอย่างน้อย 1 เมนู"
-              badgeColor="emerald"
-              onChange={permissions => setCreateForm({ ...createForm, permissions })}
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <button disabled={isSubmitting || createForm.roles.length === 0 || createForm.permissions.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 text-white font-bold px-4 py-2 hover:bg-blue-700 disabled:opacity-50">
-            <UserPlus size={18} />
-            สร้างผู้ใช้งาน
-          </button>
-        </div>
-      </form>
-
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600">
               <tr>
-                <th className="text-left px-4 py-3">Username</th>
-                <th className="text-left px-4 py-3">Email</th>
-                <th className="text-left px-4 py-3">Firstname</th>
-                <th className="text-left px-4 py-3">Surname</th>
-                <th className="text-left px-4 py-3">ตำแหน่งงาน / สิทธิ์เมนู</th>
-                <th className="text-left px-4 py-3">สถานะ</th>
-                <th className="text-right px-4 py-3">จัดการ</th>
+                <th className="px-4 py-3 text-left">ผู้ใช้งาน</th>
+                <th className="px-4 py-3 text-left">Email</th>
+                <th className="px-4 py-3 text-left">ตำแหน่งงาน</th>
+                <th className="px-4 py-3 text-left">สิทธิ์เมนู</th>
+                <th className="px-4 py-3 text-left">สถานะ</th>
+                <th className="px-4 py-3 text-right">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {sortedUsers.map(profile => {
-                const form = getEditForm(profile);
+                const roles = getProfileRoles(profile);
+                const permissions = getProfilePermissions(profile);
+                const fullName = [profile.firstname, profile.surname].filter(Boolean).join(' ') || profile.displayName || '-';
                 return (
-                  <tr key={profile.uid} className="align-top">
-                    <td className="px-4 py-3 font-bold text-gray-900">{profile.username || '-'}</td>
-                    <td className="px-4 py-3"><input className="border rounded-lg px-2 py-1 w-56" value={form.email} onChange={e => setEditValue(profile, { email: e.target.value })} /></td>
-                    <td className="px-4 py-3"><input className="border rounded-lg px-2 py-1 w-40" value={form.firstname} onChange={e => setEditValue(profile, { firstname: e.target.value })} /></td>
-                    <td className="px-4 py-3"><input className="border rounded-lg px-2 py-1 w-40" value={form.surname} onChange={e => setEditValue(profile, { surname: e.target.value })} /></td>
+                  <tr key={profile.uid} className="align-middle hover:bg-gray-50/60">
                     <td className="px-4 py-3">
-                      <div className="space-y-4 min-w-[540px]">
-                        <div>
-                          <div className="mb-1 text-xs font-bold text-gray-500">ตำแหน่งงาน</div>
-                          <CheckboxGroup
-                            values={form.roles}
-                            options={ROLE_OPTIONS}
-                            labels={ROLE_LABELS}
-                            emptyText="ต้องเลือกอย่างน้อย 1 ตำแหน่ง"
-                            compact
-                            onChange={roles => handleEditRolesChange(profile, roles)}
-                          />
-                        </div>
-                        <div>
-                          <div className="mb-1 text-xs font-bold text-gray-500">สิทธิ์เมนู</div>
-                          <CheckboxGroup
-                            values={form.permissions}
-                            options={MENU_PERMISSION_OPTIONS}
-                            labels={MENU_PERMISSION_LABELS}
-                            emptyText="ต้องเลือกอย่างน้อย 1 เมนู"
-                            compact
-                            badgeColor="emerald"
-                            onChange={permissions => setEditValue(profile, { permissions })}
-                          />
-                        </div>
-                      </div>
+                      <div className="font-black text-gray-900">{profile.username || '-'}</div>
+                      <div className="text-xs text-gray-500">{fullName}</div>
                     </td>
-                    <td className="px-4 py-3 space-y-2">
-                      <label className="inline-flex items-center gap-2">
-                        <input type="checkbox" checked={form.active} onChange={e => setEditValue(profile, { active: e.target.checked })} />
-                        <span>{form.active ? 'ใช้งาน' : 'ปิดใช้งาน'}</span>
-                      </label>
-                      {profile.mustChangePassword && <div className="text-xs text-amber-600 font-bold">ต้องเปลี่ยนรหัสผ่าน</div>}
-                      {profile.uid === user?.uid && <div className="text-xs text-blue-600">บัญชีของคุณ</div>}
+                    <td className="px-4 py-3 text-gray-700">{profile.email || '-'}</td>
+                    <td className="px-4 py-3 min-w-[190px]">
+                      <BadgeList values={roles} labels={ROLE_LABELS} limit={3} />
+                    </td>
+                    <td className="px-4 py-3 min-w-[280px]">
+                      <BadgeList values={permissions} labels={MENU_PERMISSION_LABELS} color="emerald" limit={4} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="space-y-1">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${profile.active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {profile.active ? 'ใช้งาน' : 'ปิดใช้งาน'}
+                        </span>
+                        {profile.mustChangePassword && <div className="text-xs font-bold text-amber-600">ต้องเปลี่ยนรหัส</div>}
+                        {profile.uid === user?.uid && <div className="text-xs text-blue-600">บัญชีของคุณ</div>}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
-                        <button disabled={isSubmitting || form.roles.length === 0 || form.permissions.length === 0} onClick={() => handleSave(profile)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50">
-                          <Save size={16} />
-                          บันทึก
+                        <button disabled={isSubmitting} onClick={() => setAccessForm(createFormFromProfile(profile))} className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-1.5 font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">
+                          <Edit3 size={16} />
+                          แก้ไข
                         </button>
-                        <button disabled={isSubmitting} onClick={() => handleResetPassword(profile)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 disabled:opacity-50">
+                        <button disabled={isSubmitting} onClick={() => handleResetPassword(profile)} className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-3 py-1.5 font-bold text-gray-700 hover:bg-gray-200 disabled:opacity-50">
                           <KeyRound size={16} />
                           Reset
                         </button>
@@ -375,7 +389,7 @@ export default function UserManagement() {
               })}
               {sortedUsers.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
                     <RefreshCw className="mx-auto mb-2 text-gray-300" />
                     ยังไม่มีข้อมูลผู้ใช้งาน หรือกำลังโหลดข้อมูล
                   </td>
@@ -385,6 +399,16 @@ export default function UserManagement() {
           </table>
         </div>
       </div>
+
+      {accessForm && (
+        <UserAccessModal
+          form={accessForm}
+          isSubmitting={isSubmitting}
+          onClose={() => setAccessForm(null)}
+          onChange={updates => setAccessForm(current => current ? { ...current, ...updates } : current)}
+          onSubmit={handleSubmitForm}
+        />
+      )}
     </div>
   );
 }
